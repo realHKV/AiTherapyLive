@@ -1,0 +1,365 @@
+/* =========================================
+   AiTherapy — Design System (Tailwind v3)
+   Luminescent Sanctuary by Stitch
+   ========================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Manrope:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Base ---- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-on-surface font-body antialiased;
+    min-height: 100vh;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+}
+
+/* ---- Custom Utilities ---- */
+@layer utilities {
+  /* Glassmorphism */
+  .glass-morphism {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 40px var(--glass-shadow);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  .glass-nav {
+    background: var(--glass-nav-bg);
+    border-bottom: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  
+  .glass-morphism-nav {
+    background: var(--glass-nav-bg);
+    border-bottom: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .liquid-gradient {
+    background: linear-gradient(135deg, #b52701 0%, #ffdad2 100%);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(181, 39, 1, 0.2);
+  }
+
+  /* Ambient background blobs */
+  .hero-blob {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(204, 151, 255, 0.12) 0%, rgba(6, 14, 32, 0) 70%);
+    filter: blur(80px);
+    pointer-events: none;
+  }
+
+  .hero-blob-cyan {
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(83, 221, 252, 0.10) 0%, rgba(6, 14, 32, 0) 70%);
+    filter: blur(80px);
+    pointer-events: none;
+  }
+
+  /* Spline canvas container — ready for 3D asset drop-in */
+  .spline-canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .spline-canvas > * {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(204, 151, 255, 0.2);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(204, 151, 255, 0.35);
+  }
+}
+
+/* ---- Markdown prose styles for AI chat ---- */
+.ai-prose {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--prose-text);
+}
+
+.ai-prose p {
+  margin-bottom: 0.85rem;
+}
+
+.ai-prose p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-prose strong {
+  color: var(--prose-strong);
+  font-weight: 600;
+}
+
+.ai-prose em {
+  color: var(--prose-em);
+}
+
+.ai-prose ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: decimal;
+}
+
+.ai-prose ul {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  list-style: disc;
+}
+
+.ai-prose li {
+  line-height: 1.6;
+}
+
+.ai-prose li p {
+  margin: 0;
+}
+
+.ai-prose h1, .ai-prose h2, .ai-prose h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  color: var(--prose-heading);
+  margin: 1rem 0 0.5rem;
+}
+
+.ai-prose code {
+  background: var(--prose-code-bg);
+  color: var(--prose-code-text);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+
+/* ---- Animations ---- */
+@keyframes blobFloat {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(30px, 20px) scale(1.05); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-blob-float {
+  animation: blobFloat 8s ease-in-out infinite alternate;
+}
+
+.animate-blob-float-rev {
+  animation: blobFloat 10s ease-in-out infinite alternate-reverse;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.7s ease both;
+}
+
+.animate-fade-slide {
+  animation: fadeSlide 0.3s ease both;
+}
+
+.animate-spin-slow {
+  animation: spin 0.9s linear infinite;
+}
+
+/* Staggered fade-up delays */
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-450 { animation-delay: 0.45s; }
+
+
+/* ---- Theme Variables ---- */
+:root {
+  /* Glass Elements */
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: rgba(0, 0, 0, 0.04);
+  --glass-nav-bg: rgba(249, 249, 255, 0.85);
+
+  /* AI Prose Text */
+  --prose-text: #334155;
+  --prose-heading: #0f172a;
+  --prose-strong: rgb(255 107 0); /* Primary */
+  --prose-em: #64748b;
+  --prose-code-bg: rgba(255, 107, 0, 0.08);
+  --prose-code-text: rgb(255 107 0);
+
+  --color-surface: 255 255 255;
+  --color-secondary-fixed-dim: 192 217 219;
+  --color-surface-bright: 255 255 255;
+  --color-on-tertiary-container: 81 89 101;
+  --color-outline: 99 124 162;
+  --color-primary-fixed-dim: 255 200 187;
+  --color-tertiary-fixed-dim: 216 224 239;
+  --color-on-tertiary-fixed: 63 71 83;
+  --color-secondary: 76 99 101;
+  --color-surface-container-low: 240 243 255;
+  --color-on-secondary: 231 253 255;
+  --color-on-error-container: 117 33 33;
+  --color-on-secondary-container: 63 86 88;
+  --color-surface-container-lowest: 255 255 255;
+  --color-surface-container-highest: 212 227 255;
+  --color-secondary-container: 206 231 233;
+  --color-on-tertiary: 247 249 255;
+  --color-error-container: 254 137 131;
+  --color-on-background: 45 45 45;
+  --color-primary-dim: 159 33 0;
+  --color-error-dim: 78 3 9;
+  --color-on-primary-fixed: 125 24 0;
+  --color-on-surface: 45 45 45;
+  --color-surface-tint: 181 39 1;
+  --color-secondary-fixed: 206 231 233;
+  --color-tertiary-fixed: 230 238 253;
+  --color-tertiary: 87 96 108;
+  --color-outline-variant: 154 179 221;
+  --color-error: 159 64 61;
+  --color-inverse-primary: 252 90 51;
+  --color-primary-container: 255 218 210;
+  --color-on-secondary-fixed-variant: 73 96 97;
+  --color-surface-dim: 198 219 255;
+  --color-on-tertiary-fixed-variant: 91 99 112;
+  --color-surface-variant: 212 227 255;
+  --color-on-surface-variant: 90 90 90;
+  --color-on-primary: 255 246 244;
+  --color-inverse-on-surface: 149 157 173;
+  --color-on-secondary-fixed: 45 67 69;
+  --color-inverse-surface: 7 14 26;
+  --color-secondary-dim: 64 87 89;
+  --color-tertiary-container: 230 238 253;
+  --color-surface-container-high: 221 233 255;
+  --color-tertiary-dim: 75 84 96;
+  --color-primary: 255 107 0;
+  --color-on-primary-container: 255 107 0;
+  --color-on-error: 255 247 246;
+  --color-background: 255 255 255;
+  --color-surface-container: 231 238 255;
+  --color-on-primary-fixed-variant: 176 38 0;
+  --color-primary-fixed: 255 218 210;
+}
+.dark {
+  /* Glass Elements */
+  --glass-bg: rgba(25, 37, 64, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-shadow: rgba(0, 0, 0, 0.15);
+  --glass-nav-bg: rgba(10, 14, 23, 0.85);
+
+  /* AI Prose Text */
+  --prose-text: #dee5ff;
+  --prose-heading: #ffffff;
+  --prose-strong: #cc97ff;
+  --prose-em: #a3aac4;
+  --prose-code-bg: rgba(83, 221, 252, 0.1);
+  --prose-code-text: #53ddfc;
+
+  --color-surface: 10 14 23;
+  --color-secondary-fixed-dim: 19 21 21;
+  --color-surface-bright: 10 14 23;
+  --color-on-tertiary-container: 64 71 80;
+  --color-outline: 75 85 105;
+  --color-primary-fixed-dim: 25 20 18;
+  --color-tertiary-fixed-dim: 21 22 23;
+  --color-on-tertiary-fixed: 216 218 220;
+  --color-secondary: 60 79 80;
+  --color-surface-container-low: 16 23 38;
+  --color-on-secondary: 23 25 25;
+  --color-on-error-container: 227 210 210;
+  --color-on-secondary-container: 216 221 221;
+  --color-surface-container-lowest: 10 14 23;
+  --color-surface-container-highest: 36 53 84;
+  --color-secondary-container: 20 23 23;
+  --color-on-tertiary: 24 24 25;
+  --color-error-container: 203 109 104;
+  --color-on-background: 235 240 255;
+  --color-primary-dim: 235 210 204;
+  --color-error-dim: 219 204 205;
+  --color-on-primary-fixed: 229 208 204;
+  --color-on-surface: 235 240 255;
+  --color-surface-tint: 240 211 204;
+  --color-secondary-fixed: 20 23 23;
+  --color-tertiary-fixed: 23 23 25;
+  --color-tertiary: 69 76 86;
+  --color-outline-variant: 45 55 75;
+  --color-error: 127 51 48;
+  --color-inverse-primary: 201 72 40;
+  --color-primary-container: 75 25 0;
+  --color-on-secondary-fixed-variant: 58 76 77;
+  --color-surface-dim: 19 21 25;
+  --color-on-tertiary-fixed-variant: 72 79 89;
+  --color-surface-variant: 36 53 84;
+  --color-on-surface-variant: 160 175 200;
+  --color-on-primary: 25 24 24;
+  --color-inverse-on-surface: 119 125 138;
+  --color-on-secondary-fixed: 213 217 217;
+  --color-inverse-surface: 205 206 209;
+  --color-secondary-dim: 51 69 71;
+  --color-tertiary-container: 23 23 25;
+  --color-surface-container-high: 28 41 66;
+  --color-tertiary-dim: 60 67 76;
+  --color-primary: 255 125 50;
+  --color-on-primary-container: 255 200 170;
+  --color-on-error: 25 24 24;
+  --color-background: 10 14 23;
+  --color-surface-container: 21 31 51;
+  --color-on-primary-fixed-variant: 239 211 204;
+  --color-primary-fixed: 25 21 21;
+}
