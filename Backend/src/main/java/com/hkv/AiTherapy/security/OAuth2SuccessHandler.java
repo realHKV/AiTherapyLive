@@ -6,6 +6,7 @@ import com.hkv.AiTherapy.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -20,6 +21,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final TherapyProfileRepository therapyProfileRepository;
+
+    // First origin in CORS_ALLOWED_ORIGINS is treated as the frontend base URL
+    // e.g. "https://your-app.netlify.app" in production, "http://localhost:5173" locally
+    @Value("${cors.allowed-origins}")
+    private String corsAllowedOrigins;
 
     @Autowired
     public OAuth2SuccessHandler(JwtTokenProvider jwtTokenProvider,
@@ -63,8 +69,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         boolean isNewUser = !therapyProfileRepository.existsByUserId(user.getId());
 
         // Redirect back to frontend with token (and new_user flag for onboarding routing)
+        // Use the first allowed origin as the frontend base URL
+        String frontendBaseUrl = corsAllowedOrigins.split(",")[0].trim();
         UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString("http://localhost:5173/oauth2/redirect")
+                .fromUriString(frontendBaseUrl + "/oauth2/redirect")
                 .queryParam("token", accessToken);
 
         if (isNewUser) {
