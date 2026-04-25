@@ -426,26 +426,24 @@ export default function Chat() {
             </div>
 
             {/* ── Input Bar ── */}
-            <div className="p-4 md:p-6 lg:p-8 pointer-events-none relative z-20">
+            <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
               <form onSubmit={handleSend} className="max-w-4xl mx-auto pointer-events-auto">
-                <div className="glass-morphism p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-3">
+                <div className="glass-morphism p-1.5 md:p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-2 md:gap-3">
                   <input
                     type="text"
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Share your thoughts..."
                     disabled={isTyping}
-                    className="flex-1 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-4 font-medium text-base disabled:cursor-not-allowed"
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-3 md:px-4 font-medium text-[15px] md:text-base disabled:cursor-not-allowed"
                   />
-                  <div className="flex items-center gap-2 pr-1">
-                    <button
-                      type="submit"
-                      disabled={!input.trim() || isTyping}
-                      className="h-11 px-5 md:px-7 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    >
-                      Send
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || isTyping}
+                    className="h-10 md:h-11 px-5 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    Send
+                  </button>
                 </div>
                 <p className="text-center mt-3 text-[10px] text-on-surface-variant/30 font-bold uppercase tracking-[0.3em]">
                   End-to-End Encrypted Session
