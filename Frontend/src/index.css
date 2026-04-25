@@ -115,6 +115,8 @@
   font-size: 1rem;
   line-height: 1.7;
   color: var(--prose-text);
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .ai-prose p {

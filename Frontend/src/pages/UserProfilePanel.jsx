@@ -60,7 +60,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
         }}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 px-6 py-5 flex items-center justify-between"
+        <div className="sticky top-0 z-10 px-4 md:px-6 py-4 md:py-5 flex items-center justify-between"
           style={{ background: 'rgba(9, 19, 40, 0.95)', borderBottom: '1px solid rgba(64, 72, 93, 0.15)' }}
         >
           <div>
@@ -80,7 +80,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
           </button>
         </div>
 
-        <div className="px-6 py-6 space-y-6">
+        <div className="px-4 md:px-6 py-4 md:py-6 space-y-6">
 
           {/* Identity Section */}
           <section>

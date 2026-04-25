@@ -219,7 +219,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background text-on-surface relative overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-background text-on-surface relative overflow-hidden">
       {enable3DBackground ? (
           <div className="absolute inset-0 z-0 bg-surface">
             {/* Desktop: Animated 3D Galaxy */}
@@ -248,7 +248,7 @@ export default function Chat() {
 
       {/* ── Nav ── */}
       <header className="glass-morphism-nav border-b border-outline-variant/10 z-50 relative">
-        <div className="flex justify-between items-center px-6 md:px-8 py-4 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
           {/* Logo + session info */}
           <div className="flex items-center gap-4">
             <span className="text-xl font-bold tracking-tight text-primary font-headline">AiTherapy</span>
@@ -385,8 +385,8 @@ export default function Chat() {
                   {msg.senderRole === 'USER' ? (
                     /* User bubble */
                     <>
-                      <div className="bg-surface-container-high px-6 py-4 rounded-xl rounded-tr-none shadow-[0_10px_30px_rgba(0,0,0,0.15)] border-r-2 border-primary/20">
-                        <p className="text-on-surface leading-relaxed">{msg.content}</p>
+                      <div className="bg-surface-container-high px-4 py-3 md:px-6 md:py-4 rounded-xl rounded-tr-none shadow-[0_10px_30px_rgba(0,0,0,0.15)] border-r-2 border-primary/20">
+                        <p className="text-on-surface leading-relaxed break-words">{msg.content}</p>
                       </div>
                       <span className="mt-1.5 mr-1 text-[10px] text-on-surface-variant/50 font-medium">
                         You
@@ -395,9 +395,9 @@ export default function Chat() {
                   ) : (
                     /* AI bubble */
                     <>
-                      <div className="glass-morphism px-6 py-4 rounded-xl rounded-tl-none border border-outline-variant/10 shadow-[0_10px_40px_rgba(0,0,0,0.12)] relative overflow-hidden">
+                      <div className="glass-morphism px-4 py-3 md:px-6 md:py-4 rounded-xl rounded-tl-none border border-outline-variant/10 shadow-[0_10px_40px_rgba(0,0,0,0.12)] relative overflow-hidden">
                         <div className="absolute -top-8 -right-8 w-20 h-20 bg-primary/5 blur-2xl" />
-                        <div className="ai-prose relative z-10">
+                        <div className="ai-prose relative z-10 w-full overflow-hidden">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {preprocessMarkdown(msg.content)}
                           </ReactMarkdown>
@@ -441,7 +441,7 @@ export default function Chat() {
                     <button
                       type="submit"
                       disabled={!input.trim() || isTyping}
-                      className="h-11 px-7 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      className="h-11 px-5 md:px-7 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
                       Send
                     </button>
