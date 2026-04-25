@@ -1,0 +1,30 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Run every 14 minutes to prevent Render's 15-minute idle spin-down
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Time and Ping
+        run: |
+          # Get current hour in IST (Asia/Kolkata)
+          CURRENT_HOUR=$(TZ='Asia/Kolkata' date +%H)
+          
+          # Check if time is between 12:00 AM (00:xx) and 7:59 AM (07:xx)
+          if [ "$CURRENT_HOUR" -ge 0 ] && [ "$CURRENT_HOUR" -lt 8 ]; then
+            echo "Current time is ${CURRENT_HOUR}:xx IST. Sleeping hours (12am - 8am). Letting the backend rest."
+            exit 0
+          fi
+          
+          echo "Current time is ${CURRENT_HOUR}:xx IST. Active hours. Pinging backend..."
+          
+          # Perform a simple GET request. 
+          # Even if it returns 404 or 401, the HTTP request itself keeps the Render instance awake.
+          curl -s https://your-backend.onrender.com/ > /dev/null
+          
+          echo "Ping sent!"
