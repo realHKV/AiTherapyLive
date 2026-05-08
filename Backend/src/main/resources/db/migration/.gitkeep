@@ -1,0 +1,3 @@
+# Flyway migrations go here.
+# Naming convention: V{version}__{description}.sql
+# Example: V1__init.sql

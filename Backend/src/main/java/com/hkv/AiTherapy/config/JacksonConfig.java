@@ -1,0 +1,17 @@
+package com.hkv.AiTherapy.config;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+
+//@Bean
+//@Primary
+//public ObjectMapper objectMapper(Jackson2ObjectMapperBuilder builder) {
+//    return builder.build();
+//}
+//
+
+//curl -v http://localhost:8080/api/v1/profile/me -H "Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIyODk0Mzg5ZS02YWZiLTRiYmMtOGIxZC1iZjM4M2RhMWE2OGEiLCJlbWFpbCI6Imltbm90aGFyc2gxNEBnbWFpbC5jb20iLCJqdGkiOiI1ODQzMThiNS1iZjFmLTQ2NTYtYWU0Yy0wMWNkNDdjMzc3YjciLCJpYXQiOjE3NzUzMjc5MzQsImV4cCI6MTc3NTMyODgzNH0.bQ_OzdKt3cxQoX9jNAQrbz47MHKe-lxJb1duC02oEa9KIujCbo1pdNlBV_9GuKfU2tiliLDC4JuOY2DmmR6lIvtGz_cLFbsjUNF4wDALK8uTpk9gp1Rxka5faOvJGis5RccgyMeCOvN27VgC3GA2n2_Oa-y0vfko4C6StS6XKdllQ_3rbY4fDJyoVGBCLUoMKn4C3lWP4frJ4ADE-9JYNi-9p02LQAgYBjz9mZ6tT9VahtTOMla9RcByjWX05XwdPQvcsQSvof01JBdQBK7XUAStq8caqh2nrSnlcfVNWQTNQP7IFacDBdkz7JtPEkF5mQ6oWgKjflb8mAhwBHVcxw"
