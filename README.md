@@ -2,6 +2,15 @@
 
 TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental health and therapy-style support. It combines conversational AI with mood tracking to give users a supportive space to talk through their thoughts and feelings.
 
+## ✨ Features
+
+- **AI Chat** — Real-time conversational support powered by Groq and OpenAI models
+- **Mood Tracking** — Log and visualize emotional patterns over time
+- **Redis Caching** — Fast session and chat data handling via Upstash Redis
+- **Persistent Sessions** — Pick up conversations where you left off
+- **Pro Subscription** — Paid tier with premium features, powered by Razorpay payment processing
+- **Security & Encryption** — Encrypted data in transit and at rest to protect sensitive conversations
+
 
 ## 📸 Screenshots
 
@@ -15,7 +24,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 | Chat Screen | Profile View |
 |---|---|
 | ![Chat Screen](<img width="1913" height="939" alt="image" src="https://github.com/user-attachments/assets/9f4bd764-9924-4872-ab2d-a480f95a732c" />
-) | ![Profile View](<img width="1791" height="931" alt="image" src="https://github.com/user-attachments/assets/a97ad654-5a69-449c-bed9-d038e4c14492" />
+) | ![Profile View](width="1791" height="931" alt="image" src="https://github.com/user-attachments/assets/a97ad654-5a69-449c-bed9-d038e4c14492" />
 ) |
 
 | Payment Screen | Memories |
@@ -23,16 +32,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 | ![Payment Screen](<img width="1640" height="931" alt="image" src="https://github.com/user-attachments/assets/4b5925ae-165a-4d9b-aa4c-77333c46a2cd" />
 )  |
 
-> Add your screenshots to a `screenshots/` folder in the repo root with the filenames above, or update the paths to match wherever you store them.
 
-## ✨ Features
-
-- **AI Chat** — Real-time conversational support powered by Groq and OpenAI models
-- **Mood Tracking** — Log and visualize emotional patterns over time
-- **Redis Caching** — Fast session and chat data handling via Upstash Redis
-- **Persistent Sessions** — Pick up conversations where you left off
-- **Pro Subscription** — Paid tier with premium features, powered by Razorpay payment processing
-- **Security & Encryption** — Encrypted data in transit and at rest to protect sensitive conversations
 
 ## 🏗️ Tech Stack
 
