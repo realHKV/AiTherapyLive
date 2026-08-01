@@ -24,7 +24,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 | Chat Screen | Profile View |
 |---|---|
 | ![Chat Screen](<img width="1913" height="939" alt="image" src="https://github.com/user-attachments/assets/9f4bd764-9924-4872-ab2d-a480f95a732c" />
-) | ![Profile View](width="1791" height="931" alt="image" src="https://github.com/user-attachments/assets/a97ad654-5a69-449c-bed9-d038e4c14492" />
+) | ![Profile View](<img width="1791" height="931" alt="image" src="https://github.com/user-attachments/assets/a97ad654-5a69-449c-bed9-d038e4c14492" />
 ) |
 
 | Payment Screen | Memories |
