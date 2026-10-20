@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -115,8 +116,12 @@ class SummarizationJobTest {
         assertNotNull(testConversation.getSummarizedAt());
         assertTrue(testConversation.getSessionSummary().contains("User discussed exam anxiety"));
         
-        verify(traitRepository, times(1)).save(any());
+        verify(traitRepository, never()).save(any());
         verify(memoryRepository, times(1)).save(any());
+        var candidate = ArgumentCaptor.forClass(com.hkv.AiTherapy.domain.LongTermMemory.class);
+        verify(memoryRepository).save(candidate.capture());
+        assertTrue("pending".equals(candidate.getValue().getStatus()));
+        assertTrue(candidate.getValue().getConfirmedAt() == null);
         verify(conversationRepository).save(testConversation);
     }
 
@@ -129,6 +134,22 @@ class SummarizationJobTest {
             when(userRepository.findByIdForUpdate(testConversation.getUser().getId()))
                     .thenReturn(Optional.empty());
             return "{\"summary\":\"synthetic summary\"}";
+        });
+
+        summarizationJob.processUnsummarizedSessions(new SessionEndedEvent(conversationId));
+
+        verify(conversationRepository, never()).save(any());
+        verifyNoInteractions(traitRepository, memoryRepository);
+    }
+
+    @Test
+    void contextResetDuringProviderCallDiscardsResult() {
+        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
+                .thenReturn(List.of(Message.builder().role("user").content("synthetic text").build()));
+        when(aiGateway.summarizeSession(anyString())).thenAnswer(invocation -> {
+            testConversation.getUser().setContextRevision(1);
+            return "{\"summary\":\"stale summary\"}";
         });
 
         summarizationJob.processUnsummarizedSessions(new SessionEndedEvent(conversationId));

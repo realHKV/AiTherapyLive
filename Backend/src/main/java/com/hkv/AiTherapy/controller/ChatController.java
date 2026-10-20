@@ -22,14 +22,11 @@ import java.util.UUID;
 public class ChatController {
 
     private final ChatService chatService;
-    private final com.hkv.AiTherapy.service.job.SummarizationJob summarizationJob;
     private final com.hkv.AiTherapy.repository.ConversationRepository conversationRepository;
 
-    public ChatController(ChatService chatService, 
-                          com.hkv.AiTherapy.service.job.SummarizationJob summarizationJob,
+    public ChatController(ChatService chatService,
                           com.hkv.AiTherapy.repository.ConversationRepository conversationRepository) {
         this.chatService = chatService;
-        this.summarizationJob = summarizationJob;
         this.conversationRepository = conversationRepository;
     }
 
@@ -64,10 +61,8 @@ public class ChatController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
         
-        // This will run the AI summarization prompt but NOT mark the session as completed
-        // and WILL NOT save duplicate memories. It updates current traits and profile info.
-        summarizationJob.extractActiveTraitsAndProfile(conv);
-        
+        // Keep the legacy route for existing clients. Inferred output cannot overwrite
+        // user-confirmed profile fields; extraction runs only after session completion.
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

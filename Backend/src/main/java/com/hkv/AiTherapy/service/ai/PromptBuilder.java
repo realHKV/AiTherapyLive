@@ -49,10 +49,6 @@ public class PromptBuilder {
                    "Be supportive, listen actively, and encourage them to express their feelings.";
         }
 
-        // Fetch top 5 personality traits by confidence
-        List<PersonalityTrait> topTraits = traitRepository.findByUserIdOrderByConfidenceDesc(userId)
-                .stream().limit(5).toList();
-
         // Fetch top 5 most important unresolved memories
         List<LongTermMemory> topMemories = memoryRepository.findTopByImportance(userId, 5);
 
@@ -60,9 +56,12 @@ public class PromptBuilder {
         
         prompt.append("Role: AI Therapist.\n");
         
-        if (profile.getAiPersona() != null && !profile.getAiPersona().isBlank()) {
-            prompt.append("Persona: ").append(profile.getAiPersona()).append("\n");
-        }
+        String persona = switch (profile.getSelectedTherapist() == null ? "" : profile.getSelectedTherapist()) {
+            case "dr_sarah" -> "Warm and empathetic; use gentle curiosity and reflective listening.";
+            case "dr_alex" -> "Direct and action-oriented; help the user clarify practical next steps.";
+            default -> "Calm and supportive.";
+        };
+        prompt.append("Persona: ").append(persona).append("\n");
         
         if (profile.getCommunicationStyle() != null && !profile.getCommunicationStyle().isBlank()) {
             prompt.append("Style: ").append(profile.getCommunicationStyle()).append("\n");
@@ -79,13 +78,6 @@ public class PromptBuilder {
                     prompt.append("Topics: ").append(String.join(",", topics)).append("\n");
                 }
             } catch (JacksonException ignored) {
-            }
-        }
-
-        if (!topTraits.isEmpty()) {
-            prompt.append("\n[Traits]\n");
-            for (PersonalityTrait trait : topTraits) {
-                prompt.append("- ").append(trait.getTraitKey()).append("\n");
             }
         }
 

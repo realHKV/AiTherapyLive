@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -32,6 +33,8 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
         SELECT c FROM Conversation c
          WHERE c.user.id = :userId
            AND c.status = 'completed'
+           AND c.contextEligible = true
+           AND c.summaryRevision = c.user.contextRevision
          ORDER BY c.endedAt DESC
          LIMIT 1
         """)
@@ -53,4 +56,16 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
 
     /** Delete all conversations for a given user — used for account deletion */
     void deleteAllByUserId(UUID userId);
+
+    @Modifying
+    @Query(value = "UPDATE conversations SET session_summary = NULL, summary_revision = NULL WHERE user_id = :userId", nativeQuery = true)
+    void invalidateSummaries(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query(value = "UPDATE conversations SET context_eligible = false, status = CASE WHEN status = 'active' THEN 'abandoned' ELSE status END WHERE user_id = :userId", nativeQuery = true)
+    void excludeAllFromContext(@Param("userId") UUID userId);
+
+    @Modifying
+    @Query(value = "UPDATE conversations SET context_eligible = false, status = CASE WHEN status = 'active' THEN 'abandoned' ELSE status END WHERE id = :conversationId AND user_id = :userId", nativeQuery = true)
+    void excludeFromContext(@Param("userId") UUID userId, @Param("conversationId") UUID conversationId);
 }

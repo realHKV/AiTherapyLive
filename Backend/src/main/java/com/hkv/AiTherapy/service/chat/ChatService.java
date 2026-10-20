@@ -68,7 +68,7 @@ public class ChatService {
         
         String previousTranscript = "";
         
-        if (activeSessionOpt.isPresent()) {
+        if (activeSessionOpt.isPresent() && activeSessionOpt.get().isContextEligible()) {
             Conversation oldSession = activeSessionOpt.get();
             // Fetch recent messages to summarize what happened immediately before reload
             List<Message> history = messageRepository.findByConversationId(oldSession.getId(), PageRequest.of(0, 6, Sort.by("createdAt").descending()));
@@ -150,8 +150,8 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
         
-        if (!"active".equals(conversation.getStatus())) {
-            throw new RuntimeException("Cannot send message to a non-active conversation");
+        if (!"active".equals(conversation.getStatus()) || !conversation.isContextEligible()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conversation is no longer active");
         }
 
         // 1. Save user's message
@@ -209,8 +209,8 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
 
-        if ("completed".equals(conversation.getStatus())) {
-            throw new IllegalStateException("Cannot send message to a completed conversation");
+        if (!"active".equals(conversation.getStatus()) || !conversation.isContextEligible()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conversation is no longer active");
         }
 
         // 1. Save user's message

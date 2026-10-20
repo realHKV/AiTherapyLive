@@ -2,6 +2,7 @@ package com.hkv.AiTherapy.integration;
 
 import com.hkv.AiTherapy.encryption.EncryptionService;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -33,7 +34,7 @@ class InfrastructureBaselineTest {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(4, flyway.migrate().migrationsExecuted);
+        assertEquals(6, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
 
         EncryptionService encryption = new EncryptionService();
@@ -65,6 +66,82 @@ class InfrastructureBaselineTest {
                     assertNotEquals(text, stored);
                     assertEquals(text, encryption.decrypt(stored));
                 }
+            }
+            String longTitle = "Private milestone 🌱 ".repeat(30);
+            try (var insert = connection.prepareStatement(
+                    "INSERT INTO long_term_memories (user_id, memory_type, title, status, source_kind, confirmed_at) VALUES (?, ?, ?, ?, ?, now())")) {
+                insert.setObject(1, userId);
+                insert.setString(2, "fact");
+                insert.setString(3, encryption.encrypt(longTitle));
+                insert.setString(4, "active");
+                insert.setString(5, "user_saved");
+                assertEquals(1, insert.executeUpdate());
+            }
+            try (var select = connection.prepareStatement("SELECT title FROM long_term_memories WHERE user_id = ?")) {
+                select.setObject(1, userId);
+                try (var result = select.executeQuery()) {
+                    assertTrue(result.next());
+                    assertEquals(longTitle, encryption.decrypt(result.getString(1)));
+                }
+            }
+        }
+    }
+
+    @Test
+    void upgradesExistingV5DataWithoutChangingIdsOrCiphertext() throws Exception {
+        String schema = "upgrade_fixture";
+        try (var connection = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE SCHEMA " + schema);
+        }
+        Flyway throughV5 = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/migration")
+                .defaultSchema(schema)
+                .schemas(schema)
+                .target(MigrationVersion.fromVersion("5"))
+                .load();
+        assertEquals(5, throughV5.migrate().migrationsExecuted);
+
+        UUID userId = UUID.randomUUID();
+        UUID memoryId = UUID.randomUUID();
+        String legacyCiphertext = "legacy-ciphertext-fixture";
+        try (var connection = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            try (var insert = connection.prepareStatement(
+                    "INSERT INTO upgrade_fixture.users (id, email) VALUES (?, ?)")) {
+                insert.setObject(1, userId);
+                insert.setString(2, "upgrade-" + userId + "@example.invalid");
+                assertEquals(1, insert.executeUpdate());
+            }
+            try (var insert = connection.prepareStatement(
+                    "INSERT INTO upgrade_fixture.long_term_memories (id, user_id, memory_type, title) VALUES (?, ?, ?, ?)")) {
+                insert.setObject(1, memoryId);
+                insert.setObject(2, userId);
+                insert.setString(3, "fact");
+                insert.setString(4, legacyCiphertext);
+                assertEquals(1, insert.executeUpdate());
+            }
+        }
+
+        Flyway upgrade = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/migration")
+                .defaultSchema(schema)
+                .schemas(schema)
+                .load();
+        assertEquals(1, upgrade.migrate().migrationsExecuted);
+        try (var connection = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var select = connection.prepareStatement(
+                     "SELECT title, status, source_kind FROM upgrade_fixture.long_term_memories WHERE id = ?")) {
+            select.setObject(1, memoryId);
+            try (var result = select.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals(legacyCiphertext, result.getString(1));
+                assertEquals("active", result.getString(2));
+                assertEquals("user_saved", result.getString(3));
             }
         }
     }

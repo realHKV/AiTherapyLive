@@ -4,8 +4,8 @@ info:
   version: 0.5.0-draft
   description: |
     Paths are relative to /api/v1. x-implementation=current means the route exists;
-    it does not imply every error is normalized. x-implementation=pending means
-    the route or opt-in behavior is a Step 06-11 design and must not be called yet.
+    it does not imply every error is normalized. in-progress-step-06 routes exist
+    but still need the PostgreSQL gate; pending routes are future designs.
     Existing /api/v1 request and success shapes remain compatible with the old client.
 servers:
   - url: /api/v1
@@ -193,6 +193,7 @@ paths:
     post:
       tags: [Chat]
       x-implementation: current
+      description: Compatibility route; checks ownership and returns success without inferred profile writes.
       responses:
         '200': { description: Success envelope with null data }
         '404': { description: Conversation absent or owned by another user }
@@ -209,7 +210,7 @@ paths:
     put:
       tags: [Profile]
       x-implementation: current
-      description: Null currently means no change; field clearing is pending Step 06.
+      description: Omitted and null fields leave values unchanged; clearFields explicitly clears supported nullable fields.
       requestBody:
         required: true
         content:
@@ -238,7 +239,7 @@ paths:
         - { name: limit, in: query, schema: { type: integer, default: 20 } }
       responses:
         '200':
-          description: Page in a success envelope; input bounds are not yet enforced
+          description: Page in a success envelope; offset must be nonnegative and divisible by limit (1-100)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MemoryPageEnvelope' }
@@ -267,7 +268,7 @@ paths:
         '404': { description: Memory absent or owned by another user }
     patch:
       tags: [Memory]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Edit or resolve a confirmed memory; require If-Match with its version.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -284,7 +285,7 @@ paths:
   /profile/me/memory-candidates:
     get:
       tags: [Memory]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Review only this user's pending extracted candidates; never used as confirmed context.
       responses:
         '200': { description: Pending candidates and source evidence in a success envelope }
@@ -293,7 +294,7 @@ paths:
       - { $ref: '#/components/parameters/CandidateId' }
     post:
       tags: [Memory]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Confirm or correct a pending candidate with If-Match before use in prompts.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -307,7 +308,7 @@ paths:
       - { $ref: '#/components/parameters/CandidateId' }
     delete:
       tags: [Memory]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Dismiss a pending candidate; it cannot become active through this operation.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -320,7 +321,7 @@ paths:
       - { $ref: '#/components/parameters/MemoryId' }
     post:
       tags: [Memory]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Remove memory from future AI context and suppress known supporting sources.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -331,7 +332,7 @@ paths:
   /profile/me/context-reset:
     post:
       tags: [Profile]
-      x-implementation: pending-step-06
+      x-implementation: in-progress-step-06
       description: Reset derived profile/memory context and advance the source eligibility boundary.
       responses:
         '200': { description: New context revision in a success envelope }
@@ -618,7 +619,7 @@ components:
           items: { $ref: '#/components/schemas/ChatMessageResponse' }
     UpdateProfileRequest:
       type: object
-      description: Current fields only; canonical onboarding additions below are pending.
+      description: Additive onboarding fields and legacy aliases; null is unchanged and clearFields clears supported fields.
       properties:
         preferredName: { type: string, nullable: true }
         ageRange: { type: string, nullable: true }
@@ -628,15 +629,18 @@ components:
           type: array
           nullable: true
           items: { type: string }
-        personaId: { type: string, nullable: true, x-implementation: pending-step-06 }
-        gender: { type: string, nullable: true, x-implementation: pending-step-06 }
-        country: { type: string, nullable: true, x-implementation: pending-step-06 }
+        personaId: { type: string, nullable: true, enum: [dr_sarah, dr_alex], x-implementation: in-progress-step-06 }
+        gender: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        country: { type: string, nullable: true, x-implementation: in-progress-step-06 }
         interests:
           type: array
           nullable: true
-          x-implementation: pending-step-06
+          x-implementation: in-progress-step-06
           items: { type: string }
-        additionalNote: { type: string, nullable: true, maxLength: 500, x-implementation: pending-step-06 }
+        additionalNote: { type: string, nullable: true, maxLength: 500, x-implementation: in-progress-step-06 }
+        clearFields:
+          type: array
+          items: { type: string }
     ProfileResponse:
       type: object
       properties:
@@ -649,16 +653,16 @@ components:
           type: array
           nullable: true
           items: { type: string }
-        personaId: { type: string, nullable: true, x-implementation: pending-step-06 }
-        onboardingComplete: { type: boolean, x-implementation: pending-step-06 }
-        gender: { type: string, nullable: true, x-implementation: pending-step-06 }
-        country: { type: string, nullable: true, x-implementation: pending-step-06 }
+        personaId: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        onboardingComplete: { type: boolean, x-implementation: in-progress-step-06 }
+        gender: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        country: { type: string, nullable: true, x-implementation: in-progress-step-06 }
         interests:
           type: array
           nullable: true
-          x-implementation: pending-step-06
+          x-implementation: in-progress-step-06
           items: { type: string }
-        additionalNote: { type: string, nullable: true, x-implementation: pending-step-06 }
+        additionalNote: { type: string, nullable: true, x-implementation: in-progress-step-06 }
         totalSessions: { type: integer }
         traits:
           type: array
@@ -689,11 +693,13 @@ components:
         occurredAt: { type: string, format: date, nullable: true }
         followUpAt: { type: string, format: date, nullable: true }
         resolved: { type: boolean }
-        status: { type: string, enum: [pending, active, resolved, superseded, expired], x-implementation: pending-step-06 }
-        sourceKind: { type: string, x-implementation: pending-step-06 }
-        confirmedAt: { type: string, format: date-time, nullable: true, x-implementation: pending-step-06 }
-        updatedAt: { type: string, format: date-time, x-implementation: pending-step-06 }
-        version: { type: integer, format: int64, x-implementation: pending-step-06 }
+        status: { type: string, enum: [pending, active, resolved, superseded, expired], x-implementation: in-progress-step-06 }
+        sourceKind: { type: string, x-implementation: in-progress-step-06 }
+        confirmedAt: { type: string, format: date-time, nullable: true, x-implementation: in-progress-step-06 }
+        updatedAt: { type: string, format: date-time, x-implementation: in-progress-step-06 }
+        version: { type: integer, format: int64, x-implementation: in-progress-step-06 }
+        sourceConversationId: { type: string, format: uuid, nullable: true, x-implementation: in-progress-step-06 }
+        sourceMessageId: { type: string, format: uuid, nullable: true, x-implementation: in-progress-step-06 }
     MemoryPageResponse:
       type: object
       properties:
@@ -721,8 +727,8 @@ components:
         currency: { type: string, example: INR }
     MemoryPatch:
       type: object
-      x-implementation: pending-step-06
-      description: Explicit fields only; omitted fields are unchanged, null clears nullable fields.
+      x-implementation: in-progress-step-06
+      description: Omitted and null fields are unchanged; clearFields explicitly clears nullable fields.
       properties:
         title: { type: string, minLength: 1 }
         detail: { type: string, nullable: true }
@@ -730,6 +736,9 @@ components:
         occurredAt: { type: string, format: date, nullable: true }
         followUpAt: { type: string, format: date, nullable: true }
         status: { type: string, enum: [active, resolved] }
+        clearFields:
+          type: array
+          items: { type: string, enum: [detail, occurredAt, followUpAt] }
     UsageStatusResponse:
       type: object
       x-implementation: pending-step-08

@@ -46,9 +46,7 @@ class AsyncDispatchCompatibilityTest {
             context.registerBean(SummarizationJob.class, () -> new SummarizationJob(
                     repository,
                     mock(MessageRepository.class),
-                    mock(PersonalityTraitRepository.class),
                     mock(LongTermMemoryRepository.class),
-                    mock(TherapyProfileRepository.class),
                     mock(AIGateway.class),
                     new ObjectMapper(),
                     mock(UserRepository.class),
