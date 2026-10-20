@@ -2,6 +2,8 @@
 
 Status: **in progress**. The Docker integration gate is pending because this host has no running Docker daemon (`/var/run/docker.sock` is absent). Do not advance the tracker to complete on the basis of skipped tests.
 
+Implementation commit: `89e646f` on local branch `codex/backend-baseline`. The GitHub push was rejected by automatic approval review pending confirmation of the repository destination, so this revision is not yet on the remote.
+
 ## Outcome and files
 
 - Recorded the initial baseline: two existing mock-based tests passed under Java 21 and Maven 3.9.14. The wrapper script lacks execute permission in Git, so documented commands invoke it with `bash`. The sandbox initially prevented Maven cache access; the normal Maven run succeeded when granted local cache access.
