@@ -43,7 +43,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 02 | Authentication lifecycle and account deletion | In progress | [Step 02 handoff](handoffs/STEP-02.md); Docker and IdP fixture gates pending |
 | 03 | Payment verification and entitlement correctness | In progress | [Step 03 handoff](handoffs/STEP-03.md); database concurrency gate pending |
 | 04 | Spring Boot and dependency upgrade checkpoints | In progress | 3.5.16 `2218e61`, 4.0.8 `6716cea`, 4.1.1 `1091d87`; [Step 04 handoff](handoffs/STEP-04.md); database/schema and scan gates pending |
-| 05 | HTTP and streaming contract specification | Complete | [Step 05 handoff](handoffs/STEP-05.md); current routes and future opt-in operations labeled in `docs/api/` |
+| 05 | HTTP and streaming contract specification | Complete | `ea822ab`; [Step 05 handoff](handoffs/STEP-05.md); current routes and future opt-in operations labeled in `docs/api/` |
 | 06 | Schema, profiles, and memory consistency | Pending | — |
 | 07 | Bedrock gateway contract and model routing | Pending | — |
 | 08 | Durable usage accounting and budget enforcement | Pending | — |
