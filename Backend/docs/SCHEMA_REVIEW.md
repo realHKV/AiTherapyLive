@@ -55,6 +55,8 @@ The most urgent work is end-to-end field mapping, encrypted column sizing, purch
 
 **Recommendation:** create a server-owned purchase with user, provider order/link identifier, expected amount/currency, product/policy version, and state before checkout. Link capture to that record and apply payment/entitlement updates atomically. Keep `user_subscriptions` as the current snapshot; add period history if quotas/renewals need it. Decide extension/reset semantics explicitly. Store currency alongside amounts, enforce positive captured amounts, and keep monetary values exact. The existing ₹50 price is a product decision, not an SQL default that validates payment.
 
+Implementation note (Step 03): V5 adds server-owned purchases and exact amount/currency capture checks; renewal extends remaining paid time. Durable period history and a product policy version remain future quota work. The Step 03 handoff records pending database concurrency and frontend migration checks.
+
 ### F05 — High: conversations/messages lack safe lifecycle and generation records
 
 [ChatService](../src/main/java/com/hkv/AiTherapy/service/chat/ChatService.java) finds the latest active session, but SQL does not enforce one active session per user. Concurrent creation can produce multiple active sessions. Repeated end calls increment `total_sessions` repeatedly. Entity counters use read-modify-write without a version/lock. Streaming stores the user message before generation and saves the assistant only on completion; there is no durable request ID, generation state, or failed/partial marker.

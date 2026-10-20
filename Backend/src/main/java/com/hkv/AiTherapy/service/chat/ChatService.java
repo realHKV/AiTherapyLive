@@ -12,7 +12,7 @@ import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
-import com.hkv.AiTherapy.repository.UserSubscriptionRepository;
+import com.hkv.AiTherapy.service.payment.EntitlementService;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import org.springframework.data.domain.PageRequest;
@@ -41,7 +41,7 @@ public class ChatService {
     private final AIGateway aiGateway;
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher eventPublisher;
-    private final UserSubscriptionRepository userSubscriptionRepository;
+    private final EntitlementService entitlementService;
 
     public ChatService(ConversationRepository conversationRepository,
                        MessageRepository messageRepository,
@@ -50,7 +50,7 @@ public class ChatService {
                        AIGateway aiGateway,
                        PromptBuilder promptBuilder,
                        ApplicationEventPublisher eventPublisher,
-                       UserSubscriptionRepository userSubscriptionRepository) {
+                       EntitlementService entitlementService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -58,7 +58,7 @@ public class ChatService {
         this.aiGateway = aiGateway;
         this.promptBuilder = promptBuilder;
         this.eventPublisher = eventPublisher;
-        this.userSubscriptionRepository = userSubscriptionRepository;
+        this.entitlementService = entitlementService;
     }
 
     @Transactional
@@ -302,9 +302,7 @@ public class ChatService {
 
     /** Returns true if the user has an active PRO subscription. */
     private boolean isProUser(UUID userId) {
-        return userSubscriptionRepository.findByUserId(userId)
-                .map(sub -> sub.isPro())
-                .orElse(false);
+        return entitlementService.isPro(userId);
     }
 
     private ChatMessageResponse mapToDto(Message message) {

@@ -7,6 +7,7 @@ import com.hkv.AiTherapy.controller.ChatController;
 import com.hkv.AiTherapy.controller.DevController;
 import com.hkv.AiTherapy.controller.PaymentController;
 import com.hkv.AiTherapy.controller.ProfileController;
+import com.hkv.AiTherapy.dto.response.PurchaseResponse;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.account.AccountService;
@@ -164,6 +165,19 @@ class SecurityHttpTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void purchaseCreationRequiresAccountAndReturnsServerOrder() throws Exception {
+        mvc.perform(post("/payment/purchases")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(subscriptionService);
+        when(subscriptionService.createPurchase(USER_ID))
+                .thenReturn(new PurchaseResponse("purchase-fixture", "order_fixture123", "rzp_test_fixture", 5000, "INR"));
+        mvc.perform(post("/payment/purchases")
+                        .header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.orderId").value("order_fixture123"))
+                .andExpect(jsonPath("$.data.amountPaise").value(5000));
     }
 
     @Test

@@ -85,9 +85,9 @@ Trait keys and memory titles are compared in Java after loading existing records
 
 ### Payments and deletion
 
-[SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) fetches a payment from Razorpay for manual verification, requires captured status and at least 5000 paise, records it, and sets PRO expiry to now + 30 days. This resets expiry rather than extending an existing remaining period. There is no recurring billing or refund processing.
+[SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) creates a ₹50 INR Razorpay order for a server-owned purchase. Manual verification fetches the provider payment, then requires an exact captured amount/currency and matching order owned by the caller. A successful capture atomically records the payment, marks the purchase captured, and grants 30 PRO days. Renewal extends the later of now or the current unexpired PRO end. [EntitlementService](../src/main/java/com/hkv/AiTherapy/service/payment/EntitlementService.java) is the server-side effective-tier lookup used by chat and status; expired PRO is effective FREE before the downgrade scheduler runs. There is no recurring billing or refund processing.
 
-Webhooks require HMAC-SHA256 even in development mode; a missing secret returns 503 and an invalid signature returns 400. Only `payment.captured` triggers an upgrade. The user comes from `notes.userId`; missing user notes return 200 without recording an upgrade. Payment IDs are unique and checked before processing, but concurrent duplicate delivery still needs tested conflict handling. Currency and manual-payment ownership are not validated.
+Webhooks require HMAC-SHA256 over the raw body even in development mode; a missing secret returns 503 and an invalid signature returns 400. Only `payment.captured` triggers an upgrade. The handler resolves a server-owned purchase from the signed order ID and ignores untrusted `notes.userId`. The purchase row and user row are locked during capture, while unique payment/order IDs provide durable replay constraints. Real concurrent database delivery still needs a Docker-backed test. The old frontend's fixed shared Razorpay link does not create a purchase and its payment IDs are rejected; Phase F must use `POST /payment/purchases` and Razorpay Checkout with the returned order ID.
 
 [AccountService](../src/main/java/com/hkv/AiTherapy/service/account/AccountService.java) locks the account row, then deletes messages, memories, traits, profile, conversations, refresh tokens, and user; SQL cascades also remove subscriptions/payments. It removes the rate-limit key. Outstanding access JWTs fail the per-request account existence check after deletion. Database deletion does not erase historical backups or provider-held data. Profile deletion removes profile, traits, and memories, leaving conversations and account intact; later summarization can recreate derived information.
 
@@ -117,6 +117,7 @@ Most successful responses use `{success, data, error, timestamp}` from [ApiRespo
 | POST `/profile/me/memories` | `type`, `title`, optional `detail`, `importance` (1–10, default 5), `occurredAt`, `followUpAt` | 200, MemoryResponse; JWT |
 | DELETE `/profile/me/memories/{id}` | No body | 204, no envelope; JWT |
 | GET `/payment/status` | No body | 200, SubscriptionStatusResponse; JWT |
+| POST `/payment/purchases` | No body | 201, `{purchaseId,orderId,keyId,amountPaise,currency}`; JWT |
 | POST `/payment/verify` | Nonblank `paymentId` | 200, SubscriptionStatusResponse; JWT, not dev-gated |
 | POST `/payment/webhook` | Raw JSON, `X-Razorpay-Signature` | Plain text `ok`; public with HMAC check |
 | POST `/dev/force-pro` | No body | 200, SubscriptionStatusResponse; JWT and `DEV_MODE=true` required |
@@ -139,7 +140,7 @@ Contract details for future changes:
 
 ## 4. Persistent data and encryption
 
-Source of schema truth: [Flyway migrations](../src/main/resources/db/migration). V1 creates the original seven tables; V2 adds onboarding columns; V3 widens age range to 50; V4 adds subscriptions/payments. Hibernate uses `ddl-auto: validate`. Add new migrations rather than rewriting applied migration files.
+Source of schema truth: [Flyway migrations](../src/main/resources/db/migration). V1 creates the original seven tables; V2 adds onboarding columns; V3 widens age range to 50; V4 adds subscriptions/payments; V5 adds server-owned purchases. Hibernate uses `ddl-auto: validate`. Add new migrations rather than rewriting applied migration files.
 
 | Table | Relationships and purpose | Application-encrypted columns |
 | --- | --- | --- |
@@ -152,6 +153,7 @@ Source of schema truth: [Flyway migrations](../src/main/resources/db/migration).
 | `refresh_tokens` | User FK; unique SHA-256 token hash, expiry/revocation | None (token is hashed) |
 | `user_subscriptions` | Unique user FK; FREE/PRO and expiry | None |
 | `payments` | User FK; unique Razorpay payment ID; amount/currency/status | None |
+| `purchases` | User FK; unique Razorpay order/payment IDs, expected amount/currency, capture state | None |
 
 User-dependent FKs cascade on user deletion; messages cascade on conversation deletion; memory source FK uses `ON DELETE SET NULL`. Important indexes support user/conversation history, trait confidence, memory importance, and PRO expiry. No database constraint enforces a single active session per user.
 

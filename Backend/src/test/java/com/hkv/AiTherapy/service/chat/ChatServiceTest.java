@@ -10,6 +10,7 @@ import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import com.hkv.AiTherapy.service.job.SessionEndedEvent;
+import com.hkv.AiTherapy.service.payment.EntitlementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,8 @@ class ChatServiceTest {
     private PromptBuilder promptBuilder;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private EntitlementService entitlementService;
 
     @InjectMocks
     private ChatService chatService;
