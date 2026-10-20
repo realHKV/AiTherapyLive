@@ -93,6 +93,8 @@ Webhooks require HMAC-SHA256 over the raw body even in development mode; a missi
 
 ## 3. HTTP contract
 
+The Step 05 [OpenAPI draft](api/openapi.yaml), [contract decisions](api/README.md), and [streaming protocol](api/streaming.md) distinguish current routes from pending features. The implementation notes below remain a snapshot of current behavior.
+
 Default server: `http://localhost:8080/api/v1`. Paths below are relative to `/api/v1`. Authenticated requests use `Authorization: Bearer <access-token>`. UUID ownership is checked in chat/memory services.
 
 Most successful responses use `{success, data, error, timestamp}` from [ApiResponse](../src/main/java/com/hkv/AiTherapy/dto/response/ApiResponse.java). Error formatting is inconsistent: there is no global exception handler; filters, validation, and uncaught service exceptions can return different shapes/statuses. Do not promise a uniform error contract without integration tests.

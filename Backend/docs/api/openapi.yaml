@@ -1,0 +1,743 @@
+openapi: 3.0.3
+info:
+  title: AI Therapy backend contract
+  version: 0.5.0-draft
+  description: |
+    Paths are relative to /api/v1. x-implementation=current means the route exists;
+    it does not imply every error is normalized. x-implementation=pending means
+    the route or opt-in behavior is a Step 06-11 design and must not be called yet.
+    Existing /api/v1 request and success shapes remain compatible with the old client.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Chat
+  - name: Profile
+  - name: Memory
+  - name: Payment
+  - name: Usage
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/AuthSuccess' }
+        '400': { description: Invalid registration; current envelope is returned by the controller }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthSuccess' }
+        '401': { description: Invalid credentials; current controller returns an error envelope }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthSuccess' }
+        '401': { description: Invalid or reused refresh token }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      description: Public matcher; an optional bearer token can also be revoked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { description: Success envelope with a message }
+        '400': { description: Logout failed }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/oauth/exchange:
+    post:
+      tags: [Auth]
+      x-implementation: current-opt-in
+      security: []
+      description: Available when OAUTH_TICKET_HANDOFF=true; ticket is single-use and expires in 60 seconds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: string, minLength: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/AuthSuccess' }
+        '401': { description: Expired or reused ticket }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/account:
+    delete:
+      tags: [Auth]
+      x-implementation: current
+      responses:
+        '200': { description: Success envelope with a deletion message }
+        '401': { description: Bearer token required }
+        '500': { description: Deletion failed }
+  /oauth2/authorization/google:
+    get:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      description: Spring Security initiates the Google OAuth redirect under the application context path.
+      responses:
+        '302': { description: Redirect to Google authorization }
+  /login/oauth2/code/google:
+    get:
+      tags: [Auth]
+      x-implementation: current
+      security: []
+      description: Spring Security callback; legacy mode redirects with token, opt-in mode with one-use ticket.
+      responses:
+        '302': { description: Redirect to frontend OAuth callback }
+        '401': { description: Invalid or incomplete Google identity }
+  /chat/sessions:
+    post:
+      tags: [Chat]
+      x-implementation: current
+      description: Creates a conversation and generates its initial greeting.
+      responses:
+        '201':
+          description: Conversation in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationEnvelope' }
+        '401': { description: Bearer token required }
+  /chat/sessions/{sessionId}/messages:
+    parameters:
+      - { $ref: '#/components/parameters/SessionId' }
+    post:
+      tags: [Chat]
+      x-implementation: current
+      requestBody: { $ref: '#/components/requestBodies/ChatMessage' }
+      responses:
+        '200':
+          description: Assistant message in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatMessageEnvelope' }
+        '404': { description: Conversation absent or owned by another user; body currently varies }
+  /chat/sessions/{sessionId}/stream:
+    parameters:
+      - { $ref: '#/components/parameters/SessionId' }
+    post:
+      tags: [Chat]
+      x-implementation: current
+      parameters:
+        - name: X-Chat-Stream-Version
+          in: header
+          required: false
+          x-implementation: pending-step-10
+          description: Set to 2 to opt into named JSON events after Step 10; omit for current chunks.
+          schema: { type: string, enum: ['2'] }
+        - name: Idempotency-Key
+          in: header
+          required: false
+          x-implementation: pending-step-10
+          description: Client UUID required when opting into stream version 2.
+          schema: { type: string, format: uuid }
+      description: |
+        Current mode emits unnamed SSE data chunks with no start or terminal event.
+        The proposed X-Chat-Stream-Version=2 protocol is pending Step 10; see streaming.md.
+      requestBody: { $ref: '#/components/requestBodies/ChatMessage' }
+      responses:
+        '200':
+          description: Current text/event-stream; chunks are plain text data payloads
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '404': { description: Conversation absent or owned by another user }
+        '429': { description: Pending Step 08/10; Retry-After and X-Usage-Reset-At headers before stream start }
+        '503': { description: Pending Step 10; provider unavailable before stream start }
+  /chat/sessions/{sessionId}/end:
+    parameters:
+      - { $ref: '#/components/parameters/SessionId' }
+    put:
+      tags: [Chat]
+      x-implementation: current
+      responses:
+        '200': { description: Success envelope with null data }
+        '404': { description: Conversation absent or owned by another user }
+  /chat/sessions/{sessionId}/refresh-profile:
+    parameters:
+      - { $ref: '#/components/parameters/SessionId' }
+    post:
+      tags: [Chat]
+      x-implementation: current
+      responses:
+        '200': { description: Success envelope with null data }
+        '404': { description: Conversation absent or owned by another user }
+  /profile/me:
+    get:
+      tags: [Profile]
+      x-implementation: current
+      responses:
+        '200':
+          description: Profile in a success envelope; may lazily create a profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileEnvelope' }
+    put:
+      tags: [Profile]
+      x-implementation: current
+      description: Null currently means no change; field clearing is pending Step 06.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Updated profile in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileEnvelope' }
+    delete:
+      tags: [Profile]
+      x-implementation: current
+      description: Removes profile, traits, and memories; leaves the account and conversations.
+      responses:
+        '200': { description: Success envelope with a deletion message }
+  /profile/me/memories:
+    get:
+      tags: [Memory]
+      x-implementation: current
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+        - { name: resolved, in: query, schema: { type: boolean } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        '200':
+          description: Page in a success envelope; input bounds are not yet enforced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemoryPageEnvelope' }
+    post:
+      tags: [Memory]
+      x-implementation: current
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMemoryRequest' }
+      responses:
+        '200':
+          description: Memory in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemoryEnvelope' }
+  /profile/me/memories/{memoryId}:
+    parameters:
+      - { $ref: '#/components/parameters/MemoryId' }
+    delete:
+      tags: [Memory]
+      x-implementation: current
+      responses:
+        '204': { description: No content, no envelope }
+        '404': { description: Memory absent or owned by another user }
+    patch:
+      tags: [Memory]
+      x-implementation: pending-step-06
+      description: Edit or resolve a confirmed memory; require If-Match with its version.
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MemoryPatch' }
+      responses:
+        '200': { description: Updated versioned MemoryResponse in a success envelope }
+        '404': { description: No such owned memory }
+        '412': { description: Version mismatch, no write applied }
+        '428': { description: If-Match required }
+  /profile/me/memory-candidates:
+    get:
+      tags: [Memory]
+      x-implementation: pending-step-06
+      description: Review only this user's pending extracted candidates; never used as confirmed context.
+      responses:
+        '200': { description: Pending candidates and source evidence in a success envelope }
+  /profile/me/memory-candidates/{candidateId}/confirm:
+    parameters:
+      - { $ref: '#/components/parameters/CandidateId' }
+    post:
+      tags: [Memory]
+      x-implementation: pending-step-06
+      description: Confirm or correct a pending candidate with If-Match before use in prompts.
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      responses:
+        '200': { description: Confirmed versioned memory in a success envelope }
+        '404': { description: No such owned candidate }
+        '412': { description: Version mismatch }
+        '428': { description: If-Match required }
+  /profile/me/memory-candidates/{candidateId}:
+    parameters:
+      - { $ref: '#/components/parameters/CandidateId' }
+    delete:
+      tags: [Memory]
+      x-implementation: pending-step-06
+      description: Dismiss a pending candidate; it cannot become active through this operation.
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      responses:
+        '204': { description: Candidate dismissed }
+        '412': { description: Version mismatch }
+        '428': { description: If-Match required }
+  /profile/me/memories/{memoryId}/forget:
+    parameters:
+      - { $ref: '#/components/parameters/MemoryId' }
+    post:
+      tags: [Memory]
+      x-implementation: pending-step-06
+      description: Remove memory from future AI context and suppress known supporting sources.
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      responses:
+        '204': { description: Memory forgotten and context revision advanced }
+        '412': { description: Version mismatch }
+        '428': { description: If-Match required }
+  /profile/me/context-reset:
+    post:
+      tags: [Profile]
+      x-implementation: pending-step-06
+      description: Reset derived profile/memory context and advance the source eligibility boundary.
+      responses:
+        '200': { description: New context revision in a success envelope }
+  /payment/status:
+    get:
+      tags: [Payment]
+      x-implementation: current
+      responses:
+        '200':
+          description: Server-side entitlement in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionEnvelope' }
+  /payment/purchases:
+    post:
+      tags: [Payment]
+      x-implementation: current
+      responses:
+        '201':
+          description: Server-owned purchase and Razorpay order in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PurchaseEnvelope' }
+        '400': { description: Purchase invalid }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /payment/verify:
+    post:
+      tags: [Payment]
+      x-implementation: current
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentId]
+              properties:
+                paymentId: { type: string, minLength: 1 }
+      responses:
+        '200': { description: Updated SubscriptionStatusResponse in a success envelope }
+        '400': { description: Payment does not match an owned purchase }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /payment/webhook:
+    post:
+      tags: [Payment]
+      x-implementation: current
+      security: []
+      description: HMAC-SHA256 over the raw body; only payment.captured can grant entitlement.
+      parameters:
+        - name: X-Razorpay-Signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Plain text ok }
+        '400': { description: Invalid signature or event; plain text }
+        '503': { description: Server configuration or persistence unavailable; plain text retry }
+  /usage/status:
+    get:
+      tags: [Usage]
+      x-implementation: pending-step-08
+      description: Server-authoritative allowance, reservation, and reset metadata.
+      responses:
+        '200':
+          description: UsageStatusResponse in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageEnvelope' }
+        '503': { description: Accounting unavailable; fail closed for billable work }
+  /dev/force-pro:
+    post:
+      tags: [Payment]
+      x-implementation: current-dev-only
+      description: Only registered when DEV_MODE=true; still requires bearer authentication.
+      responses:
+        '200': { description: SubscriptionStatusResponse in a success envelope }
+        '404': { description: Route absent in normal mode }
+  /dev/force-free:
+    post:
+      tags: [Payment]
+      x-implementation: current-dev-only
+      description: Only registered when DEV_MODE=true; still requires bearer authentication.
+      responses:
+        '200': { description: SubscriptionStatusResponse in a success envelope }
+        '404': { description: Route absent in normal mode }
+  /chat/requests/{requestId}:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Chat]
+      x-implementation: pending-step-10
+      description: Read one owned generation's terminal or in-progress state after a disconnect.
+      responses:
+        '200': { description: Generation state, persisted message IDs, and settled usage }
+        '404': { description: No such owned request }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MemoryId:
+      name: memoryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CandidateId:
+      name: candidateId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Quoted decimal version, for example "3".
+      schema: { type: string, pattern: '^"[0-9]+"$' }
+  requestBodies:
+    ChatMessage:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [content]
+            properties:
+              content: { type: string, minLength: 1 }
+  responses:
+    AuthSuccess:
+      description: AuthResponse in a success envelope
+      headers:
+        Cache-Control:
+          description: no-store on the opt-in OAuth exchange; other auth routes may vary
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthEnvelope' }
+    ServiceUnavailable:
+      description: Current controller-specific unavailable error envelope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    EnvelopeBase:
+      type: object
+      required: [success, data, error, timestamp]
+      properties:
+        success: { type: boolean }
+        data: { nullable: true }
+        error: { $ref: '#/components/schemas/ErrorDetail' }
+        timestamp: { type: string, format: date-time }
+    ErrorDetail:
+      type: object
+      nullable: true
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    ErrorEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            success: { type: boolean, enum: [false] }
+            data: { nullable: true }
+    AuthEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AuthResponse' }
+    ConversationEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ConversationResponse' }
+    ChatMessageEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ChatMessageResponse' }
+    ProfileEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/ProfileResponse' }
+    MemoryEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/MemoryResponse' }
+    MemoryPageEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/MemoryPageResponse' }
+    SubscriptionEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/SubscriptionStatusResponse' }
+    PurchaseEnvelope:
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PurchaseResponse' }
+    UsageEnvelope:
+      x-implementation: pending-step-08
+      allOf:
+        - { $ref: '#/components/schemas/EnvelopeBase' }
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/UsageStatusResponse' }
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        displayName: { type: string, nullable: true }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    AuthResponse:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, format: int64, description: Seconds }
+        user:
+          type: object
+          required: [id, email]
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+    ChatMessageResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        conversationId: { type: string, format: uuid }
+        senderRole: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        sentAt: { type: string, format: date-time, nullable: true }
+    ConversationResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [active, completed] }
+        tokenCount: { type: integer }
+        startedAt: { type: string, format: date-time, nullable: true }
+        recentMessages:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/ChatMessageResponse' }
+    UpdateProfileRequest:
+      type: object
+      description: Current fields only; canonical onboarding additions below are pending.
+      properties:
+        preferredName: { type: string, nullable: true }
+        ageRange: { type: string, nullable: true }
+        communicationStyle: { type: string, nullable: true }
+        aiPersona: { type: string, nullable: true }
+        topicsOfConcern:
+          type: array
+          nullable: true
+          items: { type: string }
+        personaId: { type: string, nullable: true, x-implementation: pending-step-06 }
+        gender: { type: string, nullable: true, x-implementation: pending-step-06 }
+        country: { type: string, nullable: true, x-implementation: pending-step-06 }
+        interests:
+          type: array
+          nullable: true
+          x-implementation: pending-step-06
+          items: { type: string }
+        additionalNote: { type: string, nullable: true, maxLength: 500, x-implementation: pending-step-06 }
+    ProfileResponse:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        preferredName: { type: string, nullable: true }
+        ageRange: { type: string, nullable: true }
+        communicationStyle: { type: string, nullable: true }
+        aiPersona: { type: string, nullable: true }
+        topicsOfConcern:
+          type: array
+          nullable: true
+          items: { type: string }
+        personaId: { type: string, nullable: true, x-implementation: pending-step-06 }
+        onboardingComplete: { type: boolean, x-implementation: pending-step-06 }
+        gender: { type: string, nullable: true, x-implementation: pending-step-06 }
+        country: { type: string, nullable: true, x-implementation: pending-step-06 }
+        interests:
+          type: array
+          nullable: true
+          x-implementation: pending-step-06
+          items: { type: string }
+        additionalNote: { type: string, nullable: true, x-implementation: pending-step-06 }
+        totalSessions: { type: integer }
+        traits:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              confidence: { type: number, format: double }
+              source: { type: string, nullable: true }
+    CreateMemoryRequest:
+      type: object
+      required: [type, title]
+      properties:
+        type: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        detail: { type: string, nullable: true }
+        importance: { type: integer, minimum: 1, maximum: 10, default: 5 }
+        occurredAt: { type: string, format: date, nullable: true }
+        followUpAt: { type: string, format: date, nullable: true }
+    MemoryResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        detail: { type: string, nullable: true }
+        importance: { type: integer }
+        occurredAt: { type: string, format: date, nullable: true }
+        followUpAt: { type: string, format: date, nullable: true }
+        resolved: { type: boolean }
+        status: { type: string, enum: [pending, active, resolved, superseded, expired], x-implementation: pending-step-06 }
+        sourceKind: { type: string, x-implementation: pending-step-06 }
+        confirmedAt: { type: string, format: date-time, nullable: true, x-implementation: pending-step-06 }
+        updatedAt: { type: string, format: date-time, x-implementation: pending-step-06 }
+        version: { type: integer, format: int64, x-implementation: pending-step-06 }
+    MemoryPageResponse:
+      type: object
+      properties:
+        memories:
+          type: array
+          items: { $ref: '#/components/schemas/MemoryResponse' }
+        total: { type: integer, format: int64 }
+        offset: { type: integer }
+        limit: { type: integer }
+    SubscriptionStatusResponse:
+      type: object
+      required: [tier, isPro]
+      properties:
+        tier: { type: string, enum: [FREE, PRO] }
+        proExpiresAt: { type: string, format: date-time, nullable: true }
+        isPro: { type: boolean }
+    PurchaseResponse:
+      type: object
+      required: [purchaseId, orderId, keyId, amountPaise, currency]
+      properties:
+        purchaseId: { type: string, format: uuid }
+        orderId: { type: string }
+        keyId: { type: string }
+        amountPaise: { type: integer }
+        currency: { type: string, example: INR }
+    MemoryPatch:
+      type: object
+      x-implementation: pending-step-06
+      description: Explicit fields only; omitted fields are unchanged, null clears nullable fields.
+      properties:
+        title: { type: string, minLength: 1 }
+        detail: { type: string, nullable: true }
+        importance: { type: integer, minimum: 1, maximum: 10 }
+        occurredAt: { type: string, format: date, nullable: true }
+        followUpAt: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [active, resolved] }
+    UsageStatusResponse:
+      type: object
+      x-implementation: pending-step-08
+      required: [tier, policyId, resetAt]
+      properties:
+        tier: { type: string, enum: [FREE, PRO] }
+        policyId: { type: string }
+        remainingRequests: { type: integer, minimum: 0 }
+        remainingTokens: { type: integer, minimum: 0 }
+        reservedTokens: { type: integer, minimum: 0 }
+        resetAt: { type: string, format: date-time }

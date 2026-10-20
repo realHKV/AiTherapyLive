@@ -1,0 +1,52 @@
+{
+  "description": "Synthetic examples of currently implemented JSON shapes; values are illustrative, not live credentials or records.",
+  "profileSuccess": {
+    "success": true,
+    "data": {
+      "userId": "00000000-0000-4000-8000-000000000001",
+      "preferredName": "Sam",
+      "ageRange": "25-34",
+      "communicationStyle": "gentle",
+      "aiPersona": "calm",
+      "topicsOfConcern": ["work stress"],
+      "totalSessions": 0,
+      "traits": []
+    },
+    "error": null,
+    "timestamp": "2026-01-01T00:00:00Z"
+  },
+  "memorySuccess": {
+    "success": true,
+    "data": {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "type": "goal",
+      "title": "Synthetic goal",
+      "detail": null,
+      "importance": 5,
+      "occurredAt": null,
+      "followUpAt": "2026-01-10",
+      "resolved": false
+    },
+    "error": null,
+    "timestamp": "2026-01-01T00:00:00Z"
+  },
+  "subscriptionSuccess": {
+    "success": true,
+    "data": {
+      "tier": "FREE",
+      "proExpiresAt": null,
+      "isPro": false
+    },
+    "error": null,
+    "timestamp": "2026-01-01T00:00:00Z"
+  },
+  "controllerError": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "PAYMENT_INVALID",
+      "message": "Payment does not match your purchase."
+    },
+    "timestamp": "2026-01-01T00:00:00Z"
+  }
+}
