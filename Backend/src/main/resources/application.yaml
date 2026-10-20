@@ -89,6 +89,12 @@ encryption:
 
 # ─── AI Provider ─────────────────────────────────────────────────────────────
 ai:
+  routing:
+    enabled: ${AI_ROUTING_ENABLED:false}
+    policy-id: ${AI_ROUTING_POLICY_ID:}
+    free-model-id: ${BEDROCK_FREE_MODEL_ID:}
+    pro-model-id: ${BEDROCK_PRO_MODEL_ID:}
+    summary-model-id: ${BEDROCK_SUMMARY_MODEL_ID:}
   provider:
     base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
     api-key: ${AI_API_KEY:}
