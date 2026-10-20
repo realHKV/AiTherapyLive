@@ -59,9 +59,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         // Generate tokens
         String accessToken = jwtTokenProvider.generateAccessToken(user);
-        System.out.println("=== GENERATED TOKEN ===");
-        System.out.println(accessToken);
-        System.out.println("=== END TOKEN ===");
         
         // Normally you'd also generate a refresh token and save it to DB here
 

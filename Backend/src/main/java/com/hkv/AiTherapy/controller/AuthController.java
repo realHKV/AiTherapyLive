@@ -44,7 +44,7 @@ public class AuthController {
             AuthResponse response = authService.register(request, userAgent);
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("REGISTRATION_FAILED", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("REGISTRATION_FAILED", "Registration failed. Check your details and try again."));
         }
     }
 
@@ -57,7 +57,7 @@ public class AuthController {
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error("INVALID_CREDENTIALS", e.getMessage()));
+                    .body(ApiResponse.error("INVALID_CREDENTIALS", "Invalid credentials."));
         }
     }
 
@@ -70,7 +70,7 @@ public class AuthController {
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error("REFRESH_FAILED", e.getMessage()));
+                    .body(ApiResponse.error("REFRESH_FAILED", "Session could not be refreshed."));
         }
     }
 
@@ -95,7 +95,7 @@ public class AuthController {
 
             return ResponseEntity.ok(ApiResponse.success(Map.of("message", "Logged out successfully")));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("LOGOUT_FAILED", e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("LOGOUT_FAILED", "Logout failed. Please try again."));
         }
     }
 
@@ -105,7 +105,8 @@ public class AuthController {
             accountService.deleteAccount(UUID.fromString(userId));
             return ResponseEntity.ok(ApiResponse.success("Account and all associated data have been permanently deleted."));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("DELETE_FAILED", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("DELETE_FAILED", "Account deletion failed. Please try again."));
         }
     }
 }

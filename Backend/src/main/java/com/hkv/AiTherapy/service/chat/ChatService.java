@@ -17,8 +17,10 @@ import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -145,7 +147,7 @@ public class ChatService {
                 .orElseThrow(() -> new RuntimeException("Conversation not found"));
                 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
         
         if (!"active".equals(conversation.getStatus())) {
@@ -204,7 +206,7 @@ public class ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not authorized to access this conversation");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
 
         if ("completed".equals(conversation.getStatus())) {
@@ -278,7 +280,7 @@ public class ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not authorized to access this conversation");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
 
         conversation.setStatus("completed");

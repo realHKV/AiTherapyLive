@@ -87,7 +87,7 @@ Trait keys and memory titles are compared in Java after loading existing records
 
 [SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) fetches a payment from Razorpay for manual verification, requires captured status and at least 5000 paise, records it, and sets PRO expiry to now + 30 days. This resets expiry rather than extending an existing remaining period. There is no recurring billing or refund processing.
 
-Webhooks verify HMAC-SHA256 over the raw body unless the secret is missing and `DEV_MODE=true`. Only `payment.captured` triggers an upgrade. The user comes from `notes.userId`; missing user notes return 200 without recording an upgrade. Payment IDs are unique and checked before processing, but concurrent duplicate delivery still needs tested conflict handling. Currency and manual-payment ownership are not validated.
+Webhooks require HMAC-SHA256 even in development mode; a missing secret returns 503 and an invalid signature returns 400. Only `payment.captured` triggers an upgrade. The user comes from `notes.userId`; missing user notes return 200 without recording an upgrade. Payment IDs are unique and checked before processing, but concurrent duplicate delivery still needs tested conflict handling. Currency and manual-payment ownership are not validated.
 
 [AccountService](../src/main/java/com/hkv/AiTherapy/service/account/AccountService.java) deletes messages, memories, traits, profile, conversations, refresh tokens, then user; SQL cascades also remove subscriptions/payments. It removes the rate-limit key, but does not invalidate all outstanding access JWTs. Database deletion does not erase historical backups or provider-held data. Profile deletion removes profile, traits, and memories, leaving conversations and account intact; later summarization can recreate derived information.
 
@@ -103,7 +103,7 @@ Most successful responses use `{success, data, error, timestamp}` from [ApiRespo
 | POST `/auth/login` | `email`, `password` | 200, AuthResponse; public |
 | POST `/auth/refresh` | `refreshToken` | 200, rotated AuthResponse; public |
 | POST `/auth/logout` | `refreshToken`, optional bearer header | 200, message; public matcher |
-| DELETE `/auth/account` | No body | 200, string; intended authenticated use, but `/auth/**` is permit-all (gap) |
+| DELETE `/auth/account` | No body | 200, string; JWT required |
 | POST `/chat/sessions` | No body | 201, ConversationResponse with greeting; JWT |
 | POST `/chat/sessions/{id}/messages` | Nonblank `content` | 200, ChatMessageResponse; JWT |
 | POST `/chat/sessions/{id}/stream` | Nonblank `content` | `text/event-stream`; JWT |
@@ -118,8 +118,8 @@ Most successful responses use `{success, data, error, timestamp}` from [ApiRespo
 | GET `/payment/status` | No body | 200, SubscriptionStatusResponse; JWT |
 | POST `/payment/verify` | Nonblank `paymentId` | 200, SubscriptionStatusResponse; JWT, not dev-gated |
 | POST `/payment/webhook` | Raw JSON, `X-Razorpay-Signature` | Plain text `ok`; public with HMAC check |
-| POST `/dev/force-pro` | No body | 200, SubscriptionStatusResponse; JWT, currently always registered |
-| POST `/dev/force-free` | No body | 200, SubscriptionStatusResponse; JWT, currently always registered |
+| POST `/dev/force-pro` | No body | 200, SubscriptionStatusResponse; JWT and `DEV_MODE=true` required |
+| POST `/dev/force-free` | No body | 200, SubscriptionStatusResponse; JWT and `DEV_MODE=true` required |
 
 Google OAuth uses framework paths `/oauth2/authorization/google` and `/login/oauth2/code/google` under the context path. Check these with the deployed external host/proxy configuration.
 
@@ -160,7 +160,7 @@ Encryption is `Base64(12-byte IV || ciphertext || 16-byte GCM tag)` using one co
 
 ## 5. Configuration and local operation
 
-Source: [application.yaml](../src/main/resources/application.yaml). Spring receives environment variables; no automatic `.env` loader or Docker Compose setup is present.
+Source: [application.yaml](../src/main/resources/application.yaml). Spring receives environment variables; use [run-with-env.sh](../run-with-env.sh) for local `.env` loading and [compose.yaml](../compose.yaml) for disposable PostgreSQL/Redis services.
 
 | Environment variables | Current meaning/default |
 | --- | --- |
@@ -174,8 +174,8 @@ Source: [application.yaml](../src/main/resources/application.yaml). Spring recei
 | `AI_PRO_BASE_URL`, `AI_PRO_API_KEY`, `AI_PRO_MODEL` | Fall back individually to default provider settings |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated exact origins, default `http://localhost:5173`; first also determines OAuth frontend redirect |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Used by manual payment fetch; empty defaults |
-| `RAZORPAY_WEBHOOK_SECRET` | Required for signed webhook processing in normal mode |
-| `DEV_MODE` | Defaults false; affects unsigned-webhook acceptance, **does not disable DevController** |
+| `RAZORPAY_WEBHOOK_SECRET` | Required for signed webhook processing in every mode |
+| `DEV_MODE` | Defaults false; `/dev/*` controllers are absent unless explicitly true |
 
 Hikari allows 10 connections per instance (minimum idle 2). Redis contains `jwt:denylist:*` with a 900-second default TTL and `rl:chat:<userId>` with a one-minute TTL. The chat filter hardcodes 20 authenticated POST requests per minute across session creation, messaging/streaming, and profile refresh. Increment and expiry are separate operations. Redis failure prevents normal JWT authentication; it is an availability dependency, not an optional cache.
 
@@ -205,19 +205,19 @@ These are source-level findings, not claims from a penetration test. Priorities 
 
 | Priority | Finding and evidence | Required outcome |
 | --- | --- | --- |
-| P0 | [DevController](../src/main/java/com/hkv/AiTherapy/controller/DevController.java) always registers free PRO upgrades despite comments/flag | Remove or explicitly gate outside production; test with `DEV_MODE=false` |
-| P0 | [OAuth2SuccessHandler](../src/main/java/com/hkv/AiTherapy/security/OAuth2SuccessHandler.java) logs JWTs and sends them in URLs; [JacksonConfig](../src/main/java/com/hkv/AiTherapy/config/JacksonConfig.java) contains a token-bearing commented example | Remove token logging/examples and design a safer handoff; inspect existing log exposure without copying credentials into documentation |
+| P0 (Step 01 addressed) | [DevController](../src/main/java/com/hkv/AiTherapy/controller/DevController.java) previously always registered free PRO upgrades | Controller now requires `DEV_MODE=true`; normal-mode HTTP test passes |
+| P0 (partly addressed) | [OAuth2SuccessHandler](../src/main/java/com/hkv/AiTherapy/security/OAuth2SuccessHandler.java) previously logged JWTs and still sends them in URLs | Token logging and the unused token-bearing source file were removed; URL handoff and Git history cleanup remain |
 | P0 | [SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) does not bind manual verification to a server-owned user/order or enforce INR | Verify ownership, currency, amount, and replay/concurrency behavior before accepting payment-derived entitlement |
-| P1 | [SecurityConfig](../src/main/java/com/hkv/AiTherapy/config/SecurityConfig.java) permits all `/auth/**`, including account deletion | Require authentication on account deletion; test anonymous and authenticated paths (this finding alone does not imply arbitrary-user deletion) |
+| P1 (Step 01 addressed) | [SecurityConfig](../src/main/java/com/hkv/AiTherapy/config/SecurityConfig.java) previously permitted all `/auth/**`, including account deletion | Only the specified public auth endpoints remain public; deletion requires a JWT |
 | P1 | Summarization races commit, loses events on restart, and can mark failed extraction complete | After-commit dispatch plus durable retry/idempotency and explicit failure state |
 | P1 | Repeated session end increments counts; start/message operations lack concurrency control | Define idempotent transitions and test concurrent clients |
 | P1 | Stream persistence/cancellation is incomplete; remote calls can hold DB transactions | Bound provider work and transaction scope; define partial/failed message semantics |
-| P1 | No health checks/metrics, production security DEBUG logs, unbounded SimpleAsyncTaskExecutor | Add readiness/liveness, safe logs/metrics, and bounded execution before scaling |
+| P1 | No health checks/metrics; unbounded SimpleAsyncTaskExecutor | Add readiness/liveness, metrics, and bounded execution before scaling; security log level is now WARN |
 | P1 | OAuth state across replicas and JWT continuity have no deployment tests | Test redirects, token refresh, logout, restart, and multi-instance behavior |
 | P2 | Profile GET creates data inside a read-only transaction; V2 fields unused; memory title schema mismatch | Add real database coverage and reconcile intended schema/API behavior |
 | P2 | Chat size, memory pagination, and profile length limits incomplete; errors inconsistent | Validate boundaries and implement a tested error contract |
 | P2 | Concurrent refresh/payment processing and Redis TTL assignment are not atomic end-to-end | Add locking/atomic operations and duplicate-request tests |
 
-Existing tests: [ChatServiceTest](../src/test/java/com/hkv/AiTherapy/service/chat/ChatServiceTest.java) covers session-end mutation/event publication; [SummarizationJobTest](../src/test/java/com/hkv/AiTherapy/service/job/SummarizationJobTest.java) covers one successful extraction. These mock-based tests do not exercise real transactions, encryption, Flyway, HTTP security, SSE, Redis, or payments. Java 21 was available during documentation review; tests were not run for this documentation-only change.
+Current tests include [SecurityHttpTest](../src/test/java/com/hkv/AiTherapy/security/SecurityHttpTest.java), token-log capture, ownership unit tests, encryption/JSON characterization, and the original chat/summarization tests. PostgreSQL/Redis Testcontainers checks are present but skip when Docker is absent; they have not yet been executed on this host. Real transactions, SSE, and payment ownership still need integration coverage in later steps.
 
 The [keep-alive workflow](../../.github/workflows/keep-alive.yml) targets Render. This is evidence of deployment intent, not confirmation of the live host or its current configuration. Inventory the actual deployment before moving data.

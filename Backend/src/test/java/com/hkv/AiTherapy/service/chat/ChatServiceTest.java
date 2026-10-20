@@ -24,7 +24,11 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import com.hkv.AiTherapy.dto.request.ChatMessageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
@@ -91,5 +95,17 @@ class ChatServiceTest {
         
         SessionEndedEvent firedEvent = eventCaptor.getValue();
         assertEquals(conversationId, firedEvent.conversationId());
+    }
+
+    @Test
+    void anotherUserCannotSendMessageToConversation() {
+        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
+        ChatMessageRequest request = new ChatMessageRequest();
+        request.setContent("Synthetic message");
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> chatService.sendMessage(UUID.randomUUID(), conversationId, request));
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatusCode());
+        verifyNoInteractions(messageRepository, aiGateway);
     }
 }

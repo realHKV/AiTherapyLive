@@ -1,13 +1,11 @@
 package com.hkv.AiTherapy.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.hkv.AiTherapy.security.JwtAuthenticationFilter;
 import com.hkv.AiTherapy.security.OAuth2SuccessHandler;
+import com.hkv.AiTherapy.security.RedisRateLimitFilter;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-//import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,9 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import com.hkv.AiTherapy.security.RedisRateLimitFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
-//import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -51,10 +47,11 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(
                                 jakarta.servlet.DispatcherType.ASYNC,
                                 jakarta.servlet.DispatcherType.ERROR
-                        ).permitAll()                          // ← add this block
-                        .requestMatchers("/auth/**").permitAll()
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout").permitAll()
+                        .requestMatchers("/oauth2/authorization/**", "/login/oauth2/code/**").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/payment/webhook").permitAll()  // Razorpay hits this — no JWT
+                        .requestMatchers(HttpMethod.POST, "/payment/webhook").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oAuth2SuccessHandler))

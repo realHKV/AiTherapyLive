@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -60,7 +61,7 @@ public class ChatController {
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
                 
         if (!conv.getUser().getId().equals(UUID.fromString(userId))) {
-            throw new SecurityException("Not authorized");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
         
         // This will run the AI summarization prompt but NOT mark the session as completed

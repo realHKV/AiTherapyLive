@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 
@@ -31,9 +32,6 @@ public class PaymentController {
 
     @Value("${razorpay.webhook-secret:}")
     private String webhookSecret;
-
-    @Value("${app.dev-mode:false}")
-    private boolean devMode;
 
     public PaymentController(SubscriptionService subscriptionService, ObjectMapper objectMapper) {
         this.subscriptionService = subscriptionService;
@@ -85,19 +83,14 @@ public class PaymentController {
             @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
             @RequestBody String rawBody) {
 
-        // 1. Verify HMAC signature (Strictly required in production)
+        // 1. Verify HMAC signature before parsing or processing any event.
         if (webhookSecret == null || webhookSecret.isBlank()) {
-            if (devMode) {
-                log.warn("RAZORPAY_WEBHOOK_SECRET not configured. Accepting webhook because DEV_MODE is true.");
-            } else {
-                log.error("CRITICAL: RAZORPAY_WEBHOOK_SECRET is missing in PRODUCTION. Rejecting webhook!");
-                return ResponseEntity.status(500).body("Server configuration error.");
-            }
-        } else {
-            if (signature == null || !verifyWebhookSignature(rawBody, signature)) {
-                log.warn("Webhook signature verification failed.");
-                return ResponseEntity.status(400).body("Invalid signature");
-            }
+            log.error("Razorpay webhook secret is not configured.");
+            return ResponseEntity.status(503).body("Server configuration error.");
+        }
+        if (signature == null || !verifyWebhookSignature(rawBody, signature)) {
+            log.warn("Webhook signature verification failed.");
+            return ResponseEntity.status(400).body("Invalid signature");
         }
 
         // 2. Parse event
@@ -146,8 +139,8 @@ public class PaymentController {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-            String computed = HexFormat.of().formatHex(hash);
-            return computed.equalsIgnoreCase(receivedSignature);
+            byte[] received = HexFormat.of().parseHex(receivedSignature);
+            return MessageDigest.isEqual(hash, received);
         } catch (Exception e) {
             log.error("HMAC verification error", e);
             return false;

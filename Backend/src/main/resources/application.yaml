@@ -107,7 +107,7 @@ cors:
 logging:
   level:
     com.hkv.AiTherapy: INFO
-    org.springframework.security: DEBUG
+    org.springframework.security: WARN
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
@@ -118,8 +118,9 @@ server:
   servlet:
     context-path: /api/v1
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
 
 # ─── Razorpay ────────────────────────────────────────────────────────────────────────────────
 razorpay:
