@@ -1,7 +1,7 @@
 package com.hkv.AiTherapy.dto;
 
 import com.hkv.AiTherapy.dto.response.ApiResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 import org.junit.jupiter.api.Test;

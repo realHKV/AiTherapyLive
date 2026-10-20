@@ -1,8 +1,8 @@
 package com.hkv.AiTherapy.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
 import com.hkv.AiTherapy.dto.request.PaymentVerifyRequest;
 import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.dto.response.SubscriptionStatusResponse;
@@ -134,7 +134,7 @@ public class PaymentController {
 
             return ResponseEntity.ok("ok");
 
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return ResponseEntity.badRequest().body("Invalid event");
         } catch (IllegalArgumentException e) {
             log.warn("Webhook capture rejected: {}", e.getMessage());

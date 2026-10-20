@@ -4,9 +4,6 @@ spring:
 
   jackson:
     use-jackson2-defaults: true
-  jackson2:
-    serialization:
-      write-dates-as-timestamps: false
 
   # ─── Database ────────────────────────────────────────────────────────────────
   datasource:
@@ -56,8 +53,9 @@ spring:
           min-idle: 1
 
   session:
-    redis:
-      namespace: aitherapy:oauth-session
+    data:
+      redis:
+        namespace: aitherapy:oauth-session
 
 
   # ─── Security / OAuth2 ───────────────────────────────────────────────────────

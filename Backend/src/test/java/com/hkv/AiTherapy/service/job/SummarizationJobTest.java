@@ -1,6 +1,6 @@
 package com.hkv.AiTherapy.service.job;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.Conversation;
 import com.hkv.AiTherapy.domain.Message;
 import com.hkv.AiTherapy.domain.User;

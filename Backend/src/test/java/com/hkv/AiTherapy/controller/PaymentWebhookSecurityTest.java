@@ -1,6 +1,6 @@
 package com.hkv.AiTherapy.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.service.payment.SubscriptionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;

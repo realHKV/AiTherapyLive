@@ -1,8 +1,8 @@
 package com.hkv.AiTherapy.service.profile;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.PersonalityTrait;
 import com.hkv.AiTherapy.domain.TherapyProfile;
 import com.hkv.AiTherapy.domain.User;
@@ -63,7 +63,7 @@ public class ProfileService {
         if (request.getTopicsOfConcern() != null) {
             try {
                 profile.setTopicsOfConcern(objectMapper.writeValueAsString(request.getTopicsOfConcern()));
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 // Ignore parsing errors for simple profile update
             }
         }
@@ -100,7 +100,7 @@ public class ProfileService {
         if (profile.getTopicsOfConcern() != null) {
             try {
                 topics = objectMapper.readValue(profile.getTopicsOfConcern(), new TypeReference<>() {});
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 // Return empty if parsing fails
             }
         }

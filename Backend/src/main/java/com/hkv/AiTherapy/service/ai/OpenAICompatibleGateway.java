@@ -1,6 +1,6 @@
 package com.hkv.AiTherapy.service.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.dto.ai.AiMessage;
 import com.hkv.AiTherapy.dto.ai.AiRequest;
 import com.hkv.AiTherapy.dto.ai.AiResponse;
@@ -194,8 +194,8 @@ public class OpenAICompatibleGateway implements AIGateway {
                             if (line.startsWith("data: ") && !line.equals("data: [DONE]")) {
                                 try {
                                     String json = line.substring(6);
-                                    com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(json);
-                                    com.fasterxml.jackson.databind.JsonNode contentNode = node.path("choices").get(0).path("delta").path("content");
+                                    tools.jackson.databind.JsonNode node = objectMapper.readTree(json);
+                                    tools.jackson.databind.JsonNode contentNode = node.path("choices").get(0).path("delta").path("content");
                                     if (!contentNode.isMissingNode() && !contentNode.isNull()) {
                                         onNext.accept(contentNode.asText());
                                     }

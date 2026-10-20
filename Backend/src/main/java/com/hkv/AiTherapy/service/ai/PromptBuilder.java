@@ -1,8 +1,8 @@
 package com.hkv.AiTherapy.service.ai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.LongTermMemory;
 import com.hkv.AiTherapy.domain.PersonalityTrait;
 import com.hkv.AiTherapy.domain.TherapyProfile;
@@ -78,7 +78,7 @@ public class PromptBuilder {
                 if (!topics.isEmpty()) {
                     prompt.append("Topics: ").append(String.join(",", topics)).append("\n");
                 }
-            } catch (JsonProcessingException ignored) {
+            } catch (JacksonException ignored) {
             }
         }
 

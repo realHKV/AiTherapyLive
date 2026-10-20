@@ -46,7 +46,7 @@ There is no durable queue, vector database, file-upload storage, AWS SDK integra
 | Encryption | [encryption](../src/main/java/com/hkv/AiTherapy/encryption) | Explicit JPA field conversion using AES-256-GCM |
 | Contracts | [dto](../src/main/java/com/hkv/AiTherapy/dto) | HTTP request/response objects and AI payloads |
 | Schema/config | [resources](../src/main/resources) | Flyway migrations V1–V4 and application configuration |
-| Packaging | [pom.xml](../pom.xml), [Dockerfile](../Dockerfile) | Java 21, Boot 3.4.4, JJWT 0.12.5; Maven build and non-root JRE container |
+| Packaging | [pom.xml](../pom.xml), [Dockerfile](../Dockerfile) | Java 21, Boot 4.1.1, JJWT 0.13.0; Maven build and non-root JRE container |
 
 ## 2. Runtime flows
 
