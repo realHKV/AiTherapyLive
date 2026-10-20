@@ -4,7 +4,7 @@ Status: **in progress**. Target implementation is Spring Boot 4.1.1 on Java 21. 
 
 ## Outcome
 
-- Upgraded the existing suite on 3.4.4, then committed a passing 3.5.16 checkpoint (`2218e61`) and a passing 4.0.8 checkpoint (`6716cea`). The 4.1.1 checkpoint follows in the next commit. These commits are independently reviewable.
+- Upgraded the existing suite on 3.4.4, then committed passing 3.5.16 (`2218e61`), 4.0.8 (`6716cea`), and 4.1.1 (`1091d87`) checkpoints. These commits are independently reviewable.
 - Replaced renamed web MVC and OAuth client starters; added the Flyway, Spring Session Data Redis, MVC test, Jackson test, and Security test starters. Replaced Testcontainers 1.x artifact names with their 2.x equivalents.
 - Migrated application JSON code from Jackson 2 to Jackson 3 (`tools.jackson`), retaining `com.fasterxml.jackson.annotation` for annotations as required by Jackson 3. `spring.jackson.use-jackson2-defaults=true` preserves the prior API JSON defaults. Updated the Spring Session Redis namespace property path to `spring.session.data.redis.namespace`; its value remains `aitherapy:oauth-session`.
 - Updated JJWT to 0.13.0. Its Jackson 2 adapter remains a **runtime-only** dependency; application and HTTP serialization use Jackson 3. No Jackson 2 bridge or explicit `jackson-databind` override remains.
