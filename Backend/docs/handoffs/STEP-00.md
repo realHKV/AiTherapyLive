@@ -2,7 +2,7 @@
 
 Status: **in progress**. The Docker integration gate is pending because this host has no running Docker daemon (`/var/run/docker.sock` is absent). Do not advance the tracker to complete on the basis of skipped tests.
 
-Implementation commit: `89e646f` on `codex/backend-baseline`. The initial GitHub push was rejected pending destination confirmation. After the user confirmed the repository, the branch push reported success.
+Implementation commit after the approved history cleanup: `7c0cc58` on `codex/backend-baseline`. The user confirmed the repository, and the branch push reported success.
 
 ## Outcome and files
 
@@ -10,7 +10,7 @@ Implementation commit: `89e646f` on `codex/backend-baseline`. The initial GitHub
 - Added `compose.yaml` for loopback-only PostgreSQL 16 and Redis 7, `config/local.env.example` for local configuration, and updated `run-with-env.sh` to load it from `.env`, check key settings, and start Maven from `Backend`.
 - Added Testcontainers dependencies and `InfrastructureBaselineTest` for Flyway V1–V4, an encrypted PostgreSQL field, and Redis connectivity. Container tests skip when Docker is absent. Added synthetic encryption and API JSON characterization tests.
 - Set `spring.jackson.serialization.write-dates-as-timestamps=false` so API `Instant` fields serialize as ISO strings. Made encryption UTF-8 explicit and report malformed Base64 keys with a clear startup error. Existing ciphertext format is unchanged.
-- Removed the unused, comment-only `JacksonConfig.java`, which contained a token-bearing example, without printing its contents. The local line-ending edit to that file had no runtime behavior. Any credential that was real and remains usable should be revoked; Git history still contains the comment until history is handled separately.
+- Removed the unused, comment-only `JacksonConfig.java`, which contained a token-bearing example, without printing its contents. The local line-ending edit to that file had no runtime behavior. The three approved GitHub branches were subsequently rewritten to remove that path from their reachable histories. GitHub caches, pull request refs, local objects, and clones may retain historical copies; revoke any credential that was real and remains usable.
 
 ## Checks actually run
 
@@ -30,4 +30,4 @@ Implementation commit: `89e646f` on `codex/backend-baseline`. The initial GitHub
 
 ## Outstanding and next step
 
-Run the documented Docker-backed tests and application startup on a host with a Docker daemon. Fix any actual migration, JPA validation, or Redis failure found there, then mark Step 00 complete. Step 01 (production authorization and secret/log fixes) follows. The removed token-bearing comment must be treated as potentially exposed in existing Git history.
+Run the documented Docker-backed tests and application startup on a host with a Docker daemon. Fix any actual migration, JPA validation, or Redis failure found there, then mark Step 00 complete. The removed token-bearing comment must still be treated as potentially exposed in historical copies outside the cleaned branch tips.

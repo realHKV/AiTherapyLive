@@ -1,12 +1,12 @@
 # Step 01 handoff — immediate production exposure
 
-Status: **complete** for the Step 01 exit gate. Commit: `44e921d` on `codex/backend-baseline`; the branch push reported success. Step 00's Docker gate remains pending independently.
+Status: **complete** for the Step 01 exit gate. Rewritten implementation commit: `3ed4ff5` on `codex/backend-baseline`; the branch push reported success. Step 00's Docker gate remains pending independently.
 
 ## Outcome and files
 
 - `SecurityConfig` now permits only the public POST auth operations, OAuth entry/callback paths, and the POST Razorpay webhook. `DELETE /auth/account` requires authentication. Public login, registration, refresh, and logout keep their existing paths.
 - `DevController` is registered only when `app.dev-mode=true` (default false). Normal-mode HTTP requests to `/dev/force-pro` return 404, including requests with a valid JWT.
-- `OAuth2SuccessHandler`, `JwtTokenProvider`, and `JwtAuthenticationFilter` no longer print tokens, authentication objects, or validation exceptions. The older token-bearing source example was removed in Step 00; its historical commits still need separate treatment.
+- `OAuth2SuccessHandler`, `JwtTokenProvider`, and `JwtAuthenticationFilter` no longer print tokens, authentication objects, or validation exceptions. The older token-bearing source example was removed in Step 00. Its path was subsequently removed from the reachable histories of the three approved GitHub branches.
 - `application.yaml` sets Spring Security logs to WARN and disables framework error messages, binding details, and stack traces in HTTP errors. `AuthController` sends fixed client messages rather than raw exception text; account-deletion failures return 500.
 - `PaymentController` requires a configured webhook secret in every mode, verifies the raw body signature before processing, and compares signature bytes in constant time. Missing secret returns 503; invalid signature returns 400. Payment ownership and replay correctness remain Step 03 work.
 - Cross-user conversation and memory operations return 404 without disclosing whether the resource exists. `BACKEND_REFERENCE.md` reflects these changes.
@@ -20,7 +20,7 @@ Status: **complete** for the Step 01 exit gate. Commit: `44e921d` on `codex/back
 ## Checks not run
 
 - Two PostgreSQL/Redis Testcontainers checks remain skipped because this host has no Docker daemon. No real OAuth provider, payment gateway, or staging HTTP smoke test was run.
-- Historical Git cleanup and any credential rotation are separate from Step 01 code. A previous attempt to rewrite all local refs was rejected by automatic approval review because of its broad irreversible scope. Do not consider the old Git objects erased.
+- The approved branch history cleanup was completed separately from Step 01 code. Do not consider old Git objects, GitHub caches, clones, or pull request refs erased. Credential rotation remains necessary if any exposed credential is still usable.
 
 ## Compatibility, rollout, rollback
 
@@ -30,4 +30,4 @@ Status: **complete** for the Step 01 exit gate. Commit: `44e921d` on `codex/back
 
 ## Next step
 
-Step 02 may start after this handoff. Step 00's real database/Redis integration gate remains open, and the historical token must be revoked if it is still usable. Coordinate any Git history rewrite with explicit scope approval and a backup of affected refs.
+Step 02 has started. Step 00's real database/Redis integration gate remains open, and the historical token must be revoked if it is still usable. The approved branch rewrite is documented above.

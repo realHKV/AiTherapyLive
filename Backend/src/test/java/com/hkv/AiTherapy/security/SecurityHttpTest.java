@@ -8,9 +8,11 @@ import com.hkv.AiTherapy.controller.DevController;
 import com.hkv.AiTherapy.controller.PaymentController;
 import com.hkv.AiTherapy.controller.ProfileController;
 import com.hkv.AiTherapy.repository.ConversationRepository;
+import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.account.AccountService;
 import com.hkv.AiTherapy.service.auth.AuthService;
 import com.hkv.AiTherapy.service.auth.TokenService;
+import com.hkv.AiTherapy.service.auth.OAuthTicketService;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.job.SummarizationJob;
 import com.hkv.AiTherapy.service.memory.MemoryService;
@@ -22,9 +24,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -62,6 +68,8 @@ class SecurityHttpTest {
     @MockitoBean private JwtTokenProvider jwtTokenProvider;
     @MockitoBean private OAuth2SuccessHandler oAuth2SuccessHandler;
     @MockitoBean private StringRedisTemplate redisTemplate;
+    @MockitoBean private UserRepository userRepository;
+    @MockitoBean private OAuthTicketService oauthTicketService;
 
     @BeforeEach
     void validSyntheticJwt() {
@@ -71,6 +79,7 @@ class SecurityHttpTest {
                 .thenReturn(new UsernamePasswordAuthenticationToken(USER_ID.toString(), null,
                         List.of(new SimpleGrantedAuthority("ROLE_USER"))));
         when(redisTemplate.hasKey("jwt:denylist:synthetic-jti")).thenReturn(false);
+        when(userRepository.existsByIdAndIsActiveTrue(USER_ID)).thenReturn(true);
     }
 
     @Test
@@ -160,5 +169,47 @@ class SecurityHttpTest {
                         .header("Authorization", "Bearer synthetic-valid-token"))
                 .andExpect(status().isOk());
         verify(chatService).endSession(USER_ID, sessionId);
+    }
+
+    @Test
+    void disabledAccountAccessTokenIsRejected() throws Exception {
+        when(userRepository.existsByIdAndIsActiveTrue(USER_ID)).thenReturn(false);
+        mvc.perform(delete("/auth/account")
+                        .header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void redisFailureFailsClosedForAccessToken() throws Exception {
+        when(redisTemplate.hasKey("jwt:denylist:synthetic-jti"))
+                .thenThrow(new RedisConnectionFailureException("fixture unavailable"));
+        mvc.perform(delete("/auth/account")
+                        .header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void oauthExchangeIsPublicAndReplayFailureIsSafe() throws Exception {
+        when(oauthTicketService.exchange(eq("synthetic-ticket"), nullable(String.class)))
+                .thenThrow(new IllegalArgumentException("fixture internal detail"));
+        mvc.perform(post("/auth/oauth/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ticket\":\"synthetic-ticket\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("OAUTH_TICKET_INVALID"));
+    }
+
+    @Test
+    void oauthSessionCannotAuthenticateApiWithoutBearerToken() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(USER_ID.toString(), null,
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        mvc.perform(delete("/auth/account").session(session))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(accountService);
     }
 }

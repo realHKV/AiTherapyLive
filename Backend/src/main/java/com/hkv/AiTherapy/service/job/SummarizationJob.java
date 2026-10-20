@@ -11,10 +11,13 @@ import com.hkv.AiTherapy.repository.LongTermMemoryRepository;
 import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.PersonalityTraitRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
+import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,6 +34,8 @@ public class SummarizationJob {
     private final TherapyProfileRepository profileRepository;
     private final AIGateway aiGateway;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
+    private final TransactionTemplate transactions;
 
     public SummarizationJob(ConversationRepository conversationRepository,
                             MessageRepository messageRepository,
@@ -38,7 +43,9 @@ public class SummarizationJob {
                             LongTermMemoryRepository memoryRepository,
                             TherapyProfileRepository profileRepository,
                             AIGateway aiGateway,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            UserRepository userRepository,
+                            PlatformTransactionManager transactionManager) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.traitRepository = traitRepository;
@@ -46,6 +53,8 @@ public class SummarizationJob {
         this.profileRepository = profileRepository;
         this.aiGateway = aiGateway;
         this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Async
@@ -71,13 +80,17 @@ public class SummarizationJob {
     }
 
     private void summarizeConversation(Conversation conv, boolean saveMemories, boolean markCompleted) {
+        if (!userRepository.existsByIdAndIsActiveTrue(conv.getUser().getId())) return;
         List<Message> history = messageRepository.findByConversationIdOrderByCreatedAtAsc(conv.getId());
         
         if (history.isEmpty()) {
-            if (markCompleted) {
-                conv.setSummarizedAt(Instant.now());
-                conversationRepository.save(conv);
-            }
+            if (markCompleted) transactions.executeWithoutResult(status -> {
+                if (userRepository.findByIdForUpdate(conv.getUser().getId()).filter(u -> u.isActive()).isEmpty()) return;
+                conversationRepository.findById(conv.getId()).ifPresent(current -> {
+                    current.setSummarizedAt(Instant.now());
+                    conversationRepository.save(current);
+                });
+            });
             return;
         }
 
@@ -89,17 +102,22 @@ public class SummarizationJob {
         String rawAiResponse = aiGateway.summarizeSession(transcript.toString());
         
         String jsonPayload = cleanJsonResponse(rawAiResponse);
-        
+
+        // The account lock serializes this write with account deletion. Never hold it during AI work.
+        transactions.executeWithoutResult(status -> {
+        if (userRepository.findByIdForUpdate(conv.getUser().getId()).filter(u -> u.isActive()).isEmpty()) return;
+        Conversation current = conversationRepository.findById(conv.getId()).orElse(null);
+        if (current == null) return;
         try {
             SummaryExtraction extraction = objectMapper.readValue(jsonPayload, SummaryExtraction.class);
             
             if (markCompleted) {
-                conv.setSessionSummary(extraction.getSummary());
+                current.setSessionSummary(extraction.getSummary());
             }
 
             if (extraction.getProfileUpdates() != null) {
                 SummaryExtraction.ProfileUpdates updates = extraction.getProfileUpdates();
-                profileRepository.findByUserId(conv.getUser().getId()).ifPresent(profile -> {
+                profileRepository.findByUserId(current.getUser().getId()).ifPresent(profile -> {
                     boolean changed = false;
                     if (updates.getName() != null && !updates.getName().isBlank()) {
                         // preferred_name is TEXT/encrypted — no length limit needed
@@ -118,7 +136,7 @@ public class SummarizationJob {
             }
 
             if (extraction.getTraits() != null) {
-                List<PersonalityTrait> existingTraits = traitRepository.findByUserIdOrderByConfidenceDesc(conv.getUser().getId());
+                List<PersonalityTrait> existingTraits = traitRepository.findByUserIdOrderByConfidenceDesc(current.getUser().getId());
                 for (SummaryExtraction.TraitExtraction t : extraction.getTraits()) {
                     if (t.getKey() == null || t.getKey().isBlank()) continue;
                     String normalizedKey = t.getKey().trim().toLowerCase();
@@ -127,18 +145,18 @@ public class SummarizationJob {
                             .filter(existing -> existing.getTraitKey() != null && existing.getTraitKey().trim().toLowerCase().equals(normalizedKey))
                             .findFirst()
                             .orElseGet(() -> PersonalityTrait.builder()
-                                    .user(conv.getUser())
+                                    .user(current.getUser())
                                     .traitKey(t.getKey().trim())
                                     .build());
                     
                     pt.setConfidence(t.getConfidence());
-                    pt.setSource("Session " + conv.getStartedAt().toString().substring(0, 10));
+                    pt.setSource("Session " + current.getStartedAt().toString().substring(0, 10));
                     traitRepository.save(pt);
                 }
             }
 
             if (saveMemories && extraction.getMemories() != null) {
-                List<LongTermMemory> existingMemories = memoryRepository.findByUserId(conv.getUser().getId());
+                List<LongTermMemory> existingMemories = memoryRepository.findByUserId(current.getUser().getId());
                 for (SummaryExtraction.MemoryExtraction m : extraction.getMemories()) {
                     if (m.getTitle() == null || m.getTitle().isBlank()) continue;
                     LocalDate followUp = null;
@@ -153,7 +171,7 @@ public class SummarizationJob {
                             .filter(existing -> existing.getTitle() != null && existing.getTitle().trim().toLowerCase().equals(normalizedTitle))
                             .findFirst()
                             .orElseGet(() -> LongTermMemory.builder()
-                                    .user(conv.getUser())
+                                    .user(current.getUser())
                                     .title(m.getTitle().trim())
                                     .occurredAt(LocalDate.now())
                                     .isResolved(false)
@@ -169,14 +187,15 @@ public class SummarizationJob {
             
         } catch (Exception e) {
             if (markCompleted) {
-                conv.setSessionSummary("Automated extraction failed. Raw output: " + rawAiResponse);
+                current.setSessionSummary("Automated extraction failed.");
             }
         }
         
         if (markCompleted) {
-            conv.setSummarizedAt(Instant.now());
-            conversationRepository.save(conv);
+            current.setSummarizedAt(Instant.now());
+            conversationRepository.save(current);
         }
+        });
     }
     
     private String cleanJsonResponse(String raw) {

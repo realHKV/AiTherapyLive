@@ -53,6 +53,11 @@ spring:
           max-idle: 4
           min-idle: 1
 
+  session:
+    redis:
+      namespace: aitherapy:oauth-session
+
+
   # ─── Security / OAuth2 ───────────────────────────────────────────────────────
   security:
     oauth2:
@@ -116,6 +121,8 @@ logging:
 server:
   port: 8080
   servlet:
+    session:
+      timeout: 5m
     context-path: /api/v1
   error:
     include-message: never
@@ -131,3 +138,5 @@ razorpay:
 # ─── App flags ───────────────────────────────────────────────────────────────────────────────
 app:
   dev-mode: ${DEV_MODE:false}   # set to true in .env to enable /dev/* endpoints
+  auth:
+    oauth-ticket-handoff: ${OAUTH_TICKET_HANDOFF:false}

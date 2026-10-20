@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import com.hkv.AiTherapy.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -19,11 +20,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final StringRedisTemplate redisTemplate;
+    private final UserRepository userRepository;
 
     @Autowired
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate,
+                                   UserRepository userRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -39,11 +43,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 // Check if token is in Redis deny-list (logout feature)
                 Boolean isDenylisted = redisTemplate.hasKey("jwt:denylist:" + jti);
-                if (isDenylisted != null && isDenylisted) {
+                if (isDenylisted == null || isDenylisted) {
                     throw new SecurityException("Token is revoked.");
                 }
 
                 Authentication authentication = jwtTokenProvider.getAuthentication(jwt);
+                java.util.UUID userId = java.util.UUID.fromString(authentication.getName());
+                if (!userRepository.existsByIdAndIsActiveTrue(userId)) {
+                    throw new SecurityException("Account is unavailable.");
+                }
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception ex) {

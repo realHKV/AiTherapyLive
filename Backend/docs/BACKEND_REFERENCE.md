@@ -56,11 +56,11 @@ There is no durable queue, vector database, file-upload storage, AWS SDK integra
 
 - Registration stores a BCrypt password hash and immediately issues tokens. Email verification is not implemented despite the `is_verified` field.
 - Login checks the password and active flag. Access tokens are RS256 JWTs with user UUID subject, email, JTI, and expiry; default validity is 900 seconds.
-- Refresh tokens are two UUID strings combined. PostgreSQL stores their SHA-256 hashes, device information, expiry, and revocation flag. Refresh revokes the old record and issues a new token pair; default refresh validity is 30 days.
-- JWT authentication checks Redis key `jwt:denylist:<jti>` and creates a UUID-string principal with `ROLE_USER`. It does not load the user or recheck active status on every request.
-- Logout revokes the supplied refresh token and denylists a supplied valid access token for the full configured access-token lifetime.
-- Google login finds a user by provider/subject, then email, or creates one. It redirects to the first CORS origin at `/oauth2/redirect?token=...`, optionally adding `new_user=true`. It issues no refresh token and currently prints the access token to stdout.
-- The filter chain declares stateless sessions, but the OAuth authorization-request state repository is not explicitly configured. Verify the redirect round trip across instances before scaling.
+- Refresh tokens are two UUID strings combined. PostgreSQL stores their SHA-256 hashes, device information, expiry, and revocation flag. Rotation locks the old row, rejects inactive accounts, and issues one new pair in the same transaction; default refresh validity is 30 days. Actual concurrent database behavior still needs a Docker-backed check.
+- JWT authentication checks Redis key `jwt:denylist:<jti>` and requires an existing active user on every request. Missing Redis or database state fails closed. Security contexts are not stored in the OAuth session.
+- Logout revokes the supplied refresh token and denylists a supplied valid access token for the full configured access-token lifetime. If Redis denylisting fails, refresh revocation is not committed; the API returns 503 so the client can retry.
+- Google login requires a verified email and stable subject. By default it keeps the legacy redirect to `/oauth2/redirect?token=...` for the current frontend, without issuing a refresh token. With `OAUTH_TICKET_HANDOFF=true`, it redirects with a random, 60-second, single-use `ticket` instead. `POST /auth/oauth/exchange` consumes it atomically in Redis and issues an access and refresh pair. This opt-in contract is for the Phase F frontend. The callback and exchange responses request `no-store`; the redirect also requests `Referrer-Policy: no-referrer`.
+- OAuth authorization state uses Redis-backed HTTP sessions with a five-minute lifetime, so a callback can reach a different service instance. Real Google and multi-instance round trips remain unverified. Redis loss fails the callback/exchange rather than minting tokens.
 
 ### Chat and prompts
 
@@ -77,7 +77,7 @@ There is no durable queue, vector database, file-upload storage, AWS SDK integra
 
 ### Summarization and scheduled work
 
-[SummarizationJob](../src/main/java/com/hkv/AiTherapy/service/job/SummarizationJob.java) is an `@Async @EventListener`, not a polling scheduler. It loads the full transcript, asks the default AI for JSON, updates the summary/profile/traits/memories, and sets `summarized_at`. Mid-session refresh runs extraction synchronously, updating traits and profile without saving memories or marking the session summarized.
+[SummarizationJob](../src/main/java/com/hkv/AiTherapy/service/job/SummarizationJob.java) is an `@Async @EventListener`, not a polling scheduler. It loads the full transcript, asks the default AI for JSON, then locks and rechecks the account before persisting summary/profile/traits/memories. Account deletion takes the same user lock, so a result that finishes after deletion is discarded. Mid-session refresh runs extraction synchronously, updating traits and profile without saving memories or marking the session summarized.
 
 Trait keys and memory titles are compared in Java after loading existing records. This is not concurrency-safe deduplication. Extracted memories do not currently populate `source_conv_id`. Extraction applies name and age updates, not gender. Failures can be silently swallowed; parsing/persistence failure can still mark a conversation summarized. The event is published inside a transaction and is not an after-commit event, so a listener can race the commit. There is no durable retry or recovery scan even though `findUnsummarized()` exists.
 
@@ -89,7 +89,7 @@ Trait keys and memory titles are compared in Java after loading existing records
 
 Webhooks require HMAC-SHA256 even in development mode; a missing secret returns 503 and an invalid signature returns 400. Only `payment.captured` triggers an upgrade. The user comes from `notes.userId`; missing user notes return 200 without recording an upgrade. Payment IDs are unique and checked before processing, but concurrent duplicate delivery still needs tested conflict handling. Currency and manual-payment ownership are not validated.
 
-[AccountService](../src/main/java/com/hkv/AiTherapy/service/account/AccountService.java) deletes messages, memories, traits, profile, conversations, refresh tokens, then user; SQL cascades also remove subscriptions/payments. It removes the rate-limit key, but does not invalidate all outstanding access JWTs. Database deletion does not erase historical backups or provider-held data. Profile deletion removes profile, traits, and memories, leaving conversations and account intact; later summarization can recreate derived information.
+[AccountService](../src/main/java/com/hkv/AiTherapy/service/account/AccountService.java) locks the account row, then deletes messages, memories, traits, profile, conversations, refresh tokens, and user; SQL cascades also remove subscriptions/payments. It removes the rate-limit key. Outstanding access JWTs fail the per-request account existence check after deletion. Database deletion does not erase historical backups or provider-held data. Profile deletion removes profile, traits, and memories, leaving conversations and account intact; later summarization can recreate derived information.
 
 ## 3. HTTP contract
 
@@ -103,6 +103,7 @@ Most successful responses use `{success, data, error, timestamp}` from [ApiRespo
 | POST `/auth/login` | `email`, `password` | 200, AuthResponse; public |
 | POST `/auth/refresh` | `refreshToken` | 200, rotated AuthResponse; public |
 | POST `/auth/logout` | `refreshToken`, optional bearer header | 200, message; public matcher |
+| POST `/auth/oauth/exchange` | `ticket` | 200, AuthResponse; public; requires opt-in ticket callback |
 | DELETE `/auth/account` | No body | 200, string; JWT required |
 | POST `/chat/sessions` | No body | 201, ConversationResponse with greeting; JWT |
 | POST `/chat/sessions/{id}/messages` | Nonblank `content` | 200, ChatMessageResponse; JWT |

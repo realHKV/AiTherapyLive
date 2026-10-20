@@ -38,9 +38,9 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 | Step | Deliverable | Status | Evidence |
 | --- | --- | --- | --- |
-| 00 | Baseline and reproducible local environment | In progress | Local commit `89e646f`; [Step 00 handoff](handoffs/STEP-00.md); container gate pending |
-| 01 | Production authorization and secret/log fixes | Complete | Commit `44e921d`; [Step 01 handoff](handoffs/STEP-01.md) |
-| 02 | Authentication lifecycle and account deletion | Pending | — |
+| 00 | Baseline and reproducible local environment | In progress | Rewritten commit `7c0cc58`; [Step 00 handoff](handoffs/STEP-00.md); container gate pending |
+| 01 | Production authorization and secret/log fixes | Complete | Rewritten commit `3ed4ff5`; [Step 01 handoff](handoffs/STEP-01.md) |
+| 02 | Authentication lifecycle and account deletion | In progress | [Step 02 handoff](handoffs/STEP-02.md); Docker and IdP fixture gates pending |
 | 03 | Payment verification and entitlement correctness | Pending | — |
 | 04 | Spring Boot and dependency upgrade checkpoints | Pending | — |
 | 05 | HTTP and streaming contract specification | Pending | — |
