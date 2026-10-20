@@ -34,7 +34,7 @@ class InfrastructureBaselineTest {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(6, flyway.migrate().migrationsExecuted);
+        assertEquals(7, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
 
         EncryptionService encryption = new EncryptionService();
@@ -131,7 +131,7 @@ class InfrastructureBaselineTest {
                 .defaultSchema(schema)
                 .schemas(schema)
                 .load();
-        assertEquals(1, upgrade.migrate().migrationsExecuted);
+        assertEquals(2, upgrade.migrate().migrationsExecuted);
         try (var connection = DriverManager.getConnection(
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              var select = connection.prepareStatement(

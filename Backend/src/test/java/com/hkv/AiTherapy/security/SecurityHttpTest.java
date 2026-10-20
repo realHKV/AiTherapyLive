@@ -7,6 +7,7 @@ import com.hkv.AiTherapy.controller.ChatController;
 import com.hkv.AiTherapy.controller.DevController;
 import com.hkv.AiTherapy.controller.PaymentController;
 import com.hkv.AiTherapy.controller.ProfileController;
+import com.hkv.AiTherapy.controller.UsageController;
 import com.hkv.AiTherapy.dto.response.PurchaseResponse;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
@@ -17,7 +18,12 @@ import com.hkv.AiTherapy.service.auth.OAuthTicketService;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.job.SummarizationJob;
 import com.hkv.AiTherapy.service.memory.MemoryService;
+import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
+import com.hkv.AiTherapy.service.usage.UsageAccountingService;
+import com.hkv.AiTherapy.service.usage.UsageStatus;
+import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
 import com.hkv.AiTherapy.service.payment.SubscriptionService;
+import com.hkv.AiTherapy.service.payment.EntitlementService;
 import com.hkv.AiTherapy.service.profile.ProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +55,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = {AuthController.class, ChatController.class, DevController.class,
-        PaymentController.class, ProfileController.class})
+        PaymentController.class, ProfileController.class, UsageController.class})
 @Import({SecurityConfig.class, CorsConfig.class, JwtAuthenticationFilter.class, RedisRateLimitFilter.class})
 @TestPropertySource(properties = {"app.dev-mode=false", "razorpay.webhook-secret=synthetic-webhook-secret"})
 class SecurityHttpTest {
@@ -66,9 +72,12 @@ class SecurityHttpTest {
     @MockitoBean private ProfileService profileService;
     @MockitoBean private MemoryService memoryService;
     @MockitoBean private SubscriptionService subscriptionService;
+    @MockitoBean private EntitlementService entitlementService;
     @MockitoBean private JwtTokenProvider jwtTokenProvider;
     @MockitoBean private OAuth2SuccessHandler oAuth2SuccessHandler;
     @MockitoBean private StringRedisTemplate redisTemplate;
+    @MockitoBean private RedisAdmissionService redisAdmissionService;
+    @MockitoBean private UsageAccountingService usageAccountingService;
     @MockitoBean private UserRepository userRepository;
     @MockitoBean private OAuthTicketService oauthTicketService;
 
@@ -119,6 +128,20 @@ class SecurityHttpTest {
                         .content("{\"refreshToken\":\"synthetic-refresh-token\"}"))
                 .andExpect(status().isOk());
         verify(authService).refresh(eq("synthetic-refresh-token"), any());
+    }
+
+    @Test
+    void authenticatedUsageStatusUsesTheServerEntitlement() throws Exception {
+        when(entitlementService.isPro(USER_ID)).thenReturn(true);
+        when(usageAccountingService.status(USER_ID, ResolvedGeneration.Tier.PRO))
+                .thenReturn(new UsageStatus(ResolvedGeneration.Tier.PRO, "test-policy", 10, 500, 100,
+                        java.time.Instant.parse("2026-10-21T00:00:00Z")));
+
+        mvc.perform(get("/usage/status").header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tier").value("PRO"))
+                .andExpect(jsonPath("$.data.remainingRequests").value(10))
+                .andExpect(jsonPath("$.data.policyId").value("test-policy"));
     }
 
     @Test
@@ -184,6 +207,30 @@ class SecurityHttpTest {
     void chatRequiresAuthentication() throws Exception {
         mvc.perform(post("/chat/sessions"))
                 .andExpect(status().isUnauthorized());
+        verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void usageAdmissionRejectsAThrottledChatSubmission() throws Exception {
+        when(redisAdmissionService.admit(eq(USER_ID), any()))
+                .thenThrow(new RedisAdmissionService.RateLimitedException(12));
+
+        mvc.perform(post("/chat/sessions").header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "12"))
+                .andExpect(jsonPath("$.error.code").value("RATE_LIMITED"));
+        verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void usageAdmissionFailsClosedWhenAccountingIsUnavailable() throws Exception {
+        when(redisAdmissionService.admit(eq(USER_ID), any()))
+                .thenThrow(new com.hkv.AiTherapy.service.usage.UsageException(
+                        com.hkv.AiTherapy.service.usage.UsageException.Code.ACCOUNTING_UNAVAILABLE));
+
+        mvc.perform(post("/chat/sessions").header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("ACCOUNTING_UNAVAILABLE"));
         verifyNoInteractions(chatService);
     }
 

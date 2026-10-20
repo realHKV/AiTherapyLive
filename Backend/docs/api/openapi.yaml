@@ -397,7 +397,7 @@ paths:
   /usage/status:
     get:
       tags: [Usage]
-      x-implementation: pending-step-08
+      x-implementation: current
       description: Server-authoritative allowance, reservation, and reset metadata.
       responses:
         '200':

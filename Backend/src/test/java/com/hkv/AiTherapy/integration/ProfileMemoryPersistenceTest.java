@@ -10,6 +10,11 @@ import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.security.JwtTokenProvider;
 import com.hkv.AiTherapy.service.memory.MemoryService;
 import com.hkv.AiTherapy.service.profile.ProfileService;
+import com.hkv.AiTherapy.service.usage.UsageAccountingService;
+import com.hkv.AiTherapy.service.usage.UsageException;
+import com.hkv.AiTherapy.service.ai.routing.GenerationMessage;
+import com.hkv.AiTherapy.service.ai.routing.GenerationPurpose;
+import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,7 +29,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Base64;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -44,6 +55,8 @@ class ProfileMemoryPersistenceTest {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("encryption.master-key", () -> Base64.getEncoder().encodeToString(new byte[32]));
+        registry.add("ai.usage.free.daily-requests", () -> "2");
+        registry.add("ai.usage.free.daily-tokens", () -> "1000");
     }
 
     @MockitoBean JwtTokenProvider jwtTokenProvider;
@@ -52,6 +65,7 @@ class ProfileMemoryPersistenceTest {
     @Autowired ProfileService profiles;
     @Autowired MemoryService memories;
     @Autowired JdbcTemplate jdbc;
+    @Autowired UsageAccountingService usage;
 
     @Test
     void profileMemoryOwnershipPaginationForgetAndResetPersist() {
@@ -94,5 +108,62 @@ class ProfileMemoryPersistenceTest {
 
         assertEquals(2L, profiles.deleteProfile(owner.getId()));
         assertFalse(profiles.getProfile(owner.getId()).isOnboardingComplete());
+    }
+
+    @Test
+    void durableUsageReservationIsIdempotentAndCannotOverspend() {
+        User user = users.save(User.builder().email("usage-" + UUID.randomUUID() + "@example.invalid").build());
+        var generation = new ResolvedGeneration(user.getId(), GenerationPurpose.CHAT,
+                ResolvedGeneration.Tier.FREE, "route-policy", "synthetic-model",
+                List.of(new GenerationMessage(GenerationMessage.Role.USER, "Synthetic request")), 100);
+        var first = usage.reserve(generation, "request-key-0001", 50);
+        var duplicate = usage.reserve(generation, "request-key-0001", 50);
+        assertEquals(first.requestId(), duplicate.requestId());
+        assertTrue(duplicate.existing());
+        var second = usage.reserve(generation, "request-key-0002", 50);
+        assertThrows(UsageException.class, () -> usage.reserve(generation, "request-key-0003", 50));
+
+        usage.startAttempt(first.requestId());
+        usage.settle(first.requestId(), 10, 20, "COMPLETED", null);
+        var status = usage.status(user.getId(), ResolvedGeneration.Tier.FREE);
+        assertEquals(0, status.remainingRequests());
+        assertEquals(150, status.reservedTokens());
+        assertEquals(820, status.remainingTokens());
+        Integer attempts = jdbc.queryForObject("SELECT provider_attempts FROM ai_requests WHERE id = ?", Integer.class, first.requestId());
+        assertEquals(1, attempts);
+        String attemptStatus = jdbc.queryForObject("SELECT status FROM ai_attempts WHERE request_id = ?", String.class, first.requestId());
+        assertEquals("COMPLETED", attemptStatus);
+        assertNotNull(second.requestId());
+    }
+
+    @Test
+    void concurrentReservationsCannotExceedTheDurableDailyLimit() throws Exception {
+        User user = users.save(User.builder().email("usage-concurrent-" + UUID.randomUUID() + "@example.invalid").build());
+        var generation = new ResolvedGeneration(user.getId(), GenerationPurpose.CHAT,
+                ResolvedGeneration.Tier.FREE, "route-policy", "synthetic-model",
+                List.of(new GenerationMessage(GenerationMessage.Role.USER, "Synthetic request")), 100);
+        CyclicBarrier start = new CyclicBarrier(3);
+        try (ExecutorService executor = Executors.newFixedThreadPool(3)) {
+            List<Future<Boolean>> results = executor.invokeAll(List.of(
+                    reserveAfterBarrier(start, generation, "concurrent-key-01"),
+                    reserveAfterBarrier(start, generation, "concurrent-key-02"),
+                    reserveAfterBarrier(start, generation, "concurrent-key-03")));
+            long accepted = 0;
+            for (Future<Boolean> result : results) if (result.get()) accepted++;
+            assertEquals(2, accepted);
+        }
+    }
+
+    private Callable<Boolean> reserveAfterBarrier(CyclicBarrier start, ResolvedGeneration generation, String key) {
+        return () -> {
+            start.await();
+            try {
+                usage.reserve(generation, key, 50);
+                return true;
+            } catch (UsageException exception) {
+                assertEquals(UsageException.Code.USER_LIMIT, exception.code());
+                return false;
+            }
+        };
     }
 }

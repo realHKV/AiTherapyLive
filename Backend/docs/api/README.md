@@ -30,7 +30,7 @@ Mutations to versioned candidates/memories require `If-Match: "<decimal version>
 
 Normalize failures to the existing top-level shape, keeping `success:false,data:null,error:{code,message},timestamp`. Add optional `requestId` and field `details` without removing existing fields. Never put secrets, internal exception text, or user content in an error. Stable proposed codes include `VALIDATION_FAILED` (400), `AUTH_REQUIRED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404, also for foreign-owned objects), `IDEMPOTENCY_CONFLICT` (409), `VERSION_MISMATCH` (412), `PRECONDITION_REQUIRED` (428), `RATE_LIMITED`/`USAGE_EXHAUSTED` (429), `PROVIDER_UNAVAILABLE` (503), and `ACCOUNTING_UNAVAILABLE` (503). Current controller-specific codes remain documented by the code until a common handler is implemented and tested.
 
-For 429, return `Retry-After` as nonnegative seconds and `X-Usage-Reset-At` as an ISO-8601 UTC instant. `GET /usage/status` will expose server-derived tier, remaining request/token allowance, reserved usage, reset instant, and configured policy ID; the client cannot select effective tier or model. A provider failure before streaming starts is 503 with `PROVIDER_UNAVAILABLE`; after `start`, it is a terminal SSE `error`. Accounting unavailable fails closed for new billable work. Money and token caps remain configuration inputs pending Bedrock evaluation.
+For 429, the atomic short-window filter returns `Retry-After` as nonnegative seconds and `X-Usage-Reset-At` as an ISO-8601 UTC instant. `GET /usage/status` exposes server-derived tier, remaining daily request/token allowance, reserved usage, reset instant, and configured policy ID; the client cannot select effective tier or model. The durable reservation ledger is ready for the Step 10 generation lifecycle. A provider failure before streaming starts is 503 with `PROVIDER_UNAVAILABLE`; after `start`, it is a terminal SSE `error`. Accounting unavailable fails closed for new billable work. Money and token caps remain configuration inputs pending Bedrock evaluation.
 
 ## Auth and payment transition
 
@@ -40,4 +40,4 @@ The purchase response contains `purchaseId`, `orderId`, `keyId`, `amountPaise`, 
 
 ## What later steps must prove
 
-Step 06 passed PostgreSQL upgrade, empty database, and profile/memory persistence checks in CI. Step 08 implements usage and 429 metadata. Step 10 implements idempotent chat and v2 streaming. Step 13 freezes the error envelope and runs HTTP client tests against PostgreSQL/Redis.
+Step 06 passed PostgreSQL upgrade, empty database, and profile/memory persistence checks in CI. Step 08 implements usage/status and 429 metadata, with durable reservation wiring to the actual generation lifecycle due in Step 10. Step 10 implements idempotent chat and v2 streaming. Step 13 freezes the error envelope and runs HTTP client tests against PostgreSQL/Redis.
