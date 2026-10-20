@@ -4,8 +4,7 @@ info:
   version: 0.5.0-draft
   description: |
     Paths are relative to /api/v1. x-implementation=current means the route exists;
-    it does not imply every error is normalized. in-progress-step-06 routes exist
-    but still need the PostgreSQL gate; pending routes are future designs.
+    it does not imply every error is normalized. Step 06 routes passed the PostgreSQL gate; pending routes are future designs.
     Existing /api/v1 request and success shapes remain compatible with the old client.
 servers:
   - url: /api/v1
@@ -268,7 +267,7 @@ paths:
         '404': { description: Memory absent or owned by another user }
     patch:
       tags: [Memory]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Edit or resolve a confirmed memory; require If-Match with its version.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -285,7 +284,7 @@ paths:
   /profile/me/memory-candidates:
     get:
       tags: [Memory]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Review only this user's pending extracted candidates; never used as confirmed context.
       responses:
         '200': { description: Pending candidates and source evidence in a success envelope }
@@ -294,7 +293,7 @@ paths:
       - { $ref: '#/components/parameters/CandidateId' }
     post:
       tags: [Memory]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Confirm or correct a pending candidate with If-Match before use in prompts.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -308,7 +307,7 @@ paths:
       - { $ref: '#/components/parameters/CandidateId' }
     delete:
       tags: [Memory]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Dismiss a pending candidate; it cannot become active through this operation.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -321,7 +320,7 @@ paths:
       - { $ref: '#/components/parameters/MemoryId' }
     post:
       tags: [Memory]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Remove memory from future AI context and suppress known supporting sources.
       parameters:
         - { $ref: '#/components/parameters/IfMatch' }
@@ -332,7 +331,7 @@ paths:
   /profile/me/context-reset:
     post:
       tags: [Profile]
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Reset derived profile/memory context and advance the source eligibility boundary.
       responses:
         '200': { description: New context revision in a success envelope }
@@ -629,15 +628,15 @@ components:
           type: array
           nullable: true
           items: { type: string }
-        personaId: { type: string, nullable: true, enum: [dr_sarah, dr_alex], x-implementation: in-progress-step-06 }
-        gender: { type: string, nullable: true, x-implementation: in-progress-step-06 }
-        country: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        personaId: { type: string, nullable: true, enum: [dr_sarah, dr_alex], x-implementation: current }
+        gender: { type: string, nullable: true, x-implementation: current }
+        country: { type: string, nullable: true, x-implementation: current }
         interests:
           type: array
           nullable: true
-          x-implementation: in-progress-step-06
+          x-implementation: current
           items: { type: string }
-        additionalNote: { type: string, nullable: true, maxLength: 500, x-implementation: in-progress-step-06 }
+        additionalNote: { type: string, nullable: true, maxLength: 500, x-implementation: current }
         clearFields:
           type: array
           items: { type: string }
@@ -653,16 +652,16 @@ components:
           type: array
           nullable: true
           items: { type: string }
-        personaId: { type: string, nullable: true, x-implementation: in-progress-step-06 }
-        onboardingComplete: { type: boolean, x-implementation: in-progress-step-06 }
-        gender: { type: string, nullable: true, x-implementation: in-progress-step-06 }
-        country: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        personaId: { type: string, nullable: true, x-implementation: current }
+        onboardingComplete: { type: boolean, x-implementation: current }
+        gender: { type: string, nullable: true, x-implementation: current }
+        country: { type: string, nullable: true, x-implementation: current }
         interests:
           type: array
           nullable: true
-          x-implementation: in-progress-step-06
+          x-implementation: current
           items: { type: string }
-        additionalNote: { type: string, nullable: true, x-implementation: in-progress-step-06 }
+        additionalNote: { type: string, nullable: true, x-implementation: current }
         totalSessions: { type: integer }
         traits:
           type: array
@@ -693,13 +692,13 @@ components:
         occurredAt: { type: string, format: date, nullable: true }
         followUpAt: { type: string, format: date, nullable: true }
         resolved: { type: boolean }
-        status: { type: string, enum: [pending, active, resolved, superseded, expired], x-implementation: in-progress-step-06 }
-        sourceKind: { type: string, x-implementation: in-progress-step-06 }
-        confirmedAt: { type: string, format: date-time, nullable: true, x-implementation: in-progress-step-06 }
-        updatedAt: { type: string, format: date-time, x-implementation: in-progress-step-06 }
-        version: { type: integer, format: int64, x-implementation: in-progress-step-06 }
-        sourceConversationId: { type: string, format: uuid, nullable: true, x-implementation: in-progress-step-06 }
-        sourceMessageId: { type: string, format: uuid, nullable: true, x-implementation: in-progress-step-06 }
+        status: { type: string, enum: [pending, active, resolved, superseded, expired], x-implementation: current }
+        sourceKind: { type: string, x-implementation: current }
+        confirmedAt: { type: string, format: date-time, nullable: true, x-implementation: current }
+        updatedAt: { type: string, format: date-time, x-implementation: current }
+        version: { type: integer, format: int64, x-implementation: current }
+        sourceConversationId: { type: string, format: uuid, nullable: true, x-implementation: current }
+        sourceMessageId: { type: string, format: uuid, nullable: true, x-implementation: current }
     MemoryPageResponse:
       type: object
       properties:
@@ -727,7 +726,7 @@ components:
         currency: { type: string, example: INR }
     MemoryPatch:
       type: object
-      x-implementation: in-progress-step-06
+      x-implementation: current
       description: Omitted and null fields are unchanged; clearFields explicitly clears nullable fields.
       properties:
         title: { type: string, minLength: 1 }

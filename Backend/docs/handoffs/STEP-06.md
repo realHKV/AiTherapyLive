@@ -1,6 +1,6 @@
 # Step 06 — Profile and memory reconciliation
 
-Status: **implementation in progress**. Java tests pass, but the PostgreSQL migration and persistence gate has not run because Docker is unavailable on this host. Do not treat the new routes as production verified yet.
+Status: **complete for Step 06**. GitHub Actions ran the PostgreSQL and Redis integration suite with Docker: [backend test run](https://github.com/realHKV/AiTherapyLive/actions/runs/39436690647).
 
 ## Implemented
 
@@ -13,12 +13,12 @@ Status: **implementation in progress**. Java tests pass, but the PostgreSQL migr
 
 ## Validation
 
-- `bash ./mvnw -q test` passed: 52 tests reported, zero failures/errors, three PostgreSQL/Redis Testcontainers checks skipped because `/var/run/docker.sock` is absent.
-- The integration test now expects six migrations, checks a long encrypted title, and exercises a V5-to-V6 upgrade with legacy data, but those fixtures have not executed here.
-- OpenAPI YAML parses. The Step 06 operations are labeled `in-progress-step-06` until the database gate passes.
+- Local `bash ./mvnw -q test` passed; container tests skipped because `/var/run/docker.sock` is absent.
+- GitHub Actions ran 53 tests with zero failures, errors, or skips. Flyway V6 passed on an empty schema and a V5 upgrade fixture. A long encrypted title persisted and decrypted. Full Spring startup passed Hibernate schema validation, and the persistence test exercised profile creation/update/reset, memory edit/forget/pagination, owner checks, version conflicts, and summary suppression.
+- OpenAPI YAML parses. Step 06 operations are marked current after the database gate passed.
 
-## Required before closing Step 06
+## Follow-up
 
-Run the Testcontainers suite on a host with Docker, including both empty and V5-to-V6 upgrade paths. Verify Hibernate schema validation and encrypted fixture round trips against PostgreSQL, then run owner/pagination/forget HTTP integration tests against PostgreSQL and Redis. If a migration issue appears, add V7; do not edit an applied migration.
+Step 11 will make extraction durable and retryable. Step 13 will exercise the final HTTP envelope and route contract against PostgreSQL/Redis. The full application test also exposed a preexisting password encoder dependency cycle; its bean was moved to an independent configuration before this step was closed.
 
 No AWS account, credentials, or services are needed for Step 06. Bedrock inputs will be requested for Step 09 after quota controls are in place.
