@@ -1,6 +1,6 @@
 # Step 01 handoff — immediate production exposure
 
-Status: **complete** for the Step 01 exit gate. Patch identifier: `step-01-security` on `codex/backend-baseline`. Step 00's Docker gate remains pending independently.
+Status: **complete** for the Step 01 exit gate. Commit: `44e921d` on `codex/backend-baseline`; the branch push reported success. Step 00's Docker gate remains pending independently.
 
 ## Outcome and files
 

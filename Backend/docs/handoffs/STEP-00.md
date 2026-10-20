@@ -2,7 +2,7 @@
 
 Status: **in progress**. The Docker integration gate is pending because this host has no running Docker daemon (`/var/run/docker.sock` is absent). Do not advance the tracker to complete on the basis of skipped tests.
 
-Implementation commit: `89e646f` on local branch `codex/backend-baseline`. The GitHub push was rejected by automatic approval review pending confirmation of the repository destination, so this revision is not yet on the remote.
+Implementation commit: `89e646f` on `codex/backend-baseline`. The initial GitHub push was rejected pending destination confirmation. After the user confirmed the repository, the branch push reported success.
 
 ## Outcome and files
 
