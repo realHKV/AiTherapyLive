@@ -44,8 +44,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 03 | Payment verification and entitlement correctness | In progress | [Step 03 handoff](handoffs/STEP-03.md); database concurrency gate pending |
 | 04 | Spring Boot and dependency upgrade checkpoints | In progress | 3.5.16 `2218e61`, 4.0.8 `6716cea`, 4.1.1 `1091d87`; [Step 04 handoff](handoffs/STEP-04.md); database/schema and scan gates pending |
 | 05 | HTTP and streaming contract specification | Complete | `ea822ab`; [Step 05 handoff](handoffs/STEP-05.md); current routes and future opt-in operations labeled in `docs/api/` |
-| 06 | Schema, profiles, and memory consistency | Pending | — |
-| 07 | Bedrock gateway contract and model routing | Pending | — |
+| 06 | Schema, profiles, and memory consistency | Complete | `55ce2db`; [Step 06 handoff](handoffs/STEP-06.md); PostgreSQL/Redis CI passed 53 tests |
+| 07 | Bedrock gateway contract and model routing | Complete | `e5333c1`; [Step 07 handoff](handoffs/STEP-07.md); PostgreSQL/Redis CI passed 58 tests |
 | 08 | Durable usage accounting and budget enforcement | Pending | — |
 | 09 | Bedrock adapter and model evaluation | Pending | — |
 | 10 | Transaction-safe chat and streaming lifecycle | Pending | — |
@@ -123,6 +123,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 ## Phase C — build the Bedrock application flow
 
 ### Step 07 — Define gateway and routing boundaries
+
+**Completed:** `e5333c1` introduced the opt-in `GenerationGateway` boundary with provider-neutral command, result, stream-event, cancellation, usage, policy, and sanitized-failure types. `GenerationRouter` selects the model from trusted entitlement and purpose, rejects client model IDs, and has a deterministic fake for `dev`/`test`. Routing stays disabled by default and the legacy gateway remains isolated until Steps 08–12. CI passed routing tests for every purpose, FREE, active/expired PRO, rejected model selection, invalid configuration, cancellation, and the PostgreSQL/Redis suite (58 tests, no skips). No AWS invocation occurred; Step 09 retains that external validation gate.
 
 **Read:** `AIGateway`, current gateway, `PromptBuilder`, chat/summary services, AI DTOs, and entitlement code.
 
