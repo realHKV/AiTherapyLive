@@ -13,7 +13,7 @@ Status: **in progress**. Local implementation is reviewable, but the Step 02 exi
 ## Checks actually run
 
 - `bash ./mvnw -q -Dtest=SecurityHttpTest,TokenLoggingTest,OAuthTicketServiceTest,TokenServiceTest test` passed. The focused tests cover single-use tickets, disabled ticket exchange, revoked refresh replay, Redis logout failure, disabled-account access, and Redis fail-closed access.
-- `bash ./mvnw test -q` passed: 32 reported, 30 passed, 2 skipped. The two skipped tests require Docker for PostgreSQL and Redis. Existing OAuth handler tests exercise both callback modes with synthetic identities, but not a complete provider redirect round trip.
+- `bash ./mvnw test -q` passed: 33 reported, 31 passed, 2 skipped. The two skipped tests require Docker for PostgreSQL and Redis. Existing OAuth handler tests exercise both callback modes with synthetic identities, but not a complete provider redirect round trip.
 
 ## Pending exit gates and rollout
 

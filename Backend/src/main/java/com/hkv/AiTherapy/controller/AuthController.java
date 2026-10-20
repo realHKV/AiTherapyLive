@@ -66,6 +66,9 @@ public class AuthController {
             String userAgent = httpRequest.getHeader("User-Agent");
             AuthResponse response = authService.register(request, userAgent);
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+        } catch (DataAccessException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error("AUTH_UNAVAILABLE", "Session service is temporarily unavailable."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error("REGISTRATION_FAILED", "Registration failed. Check your details and try again."));
         }
@@ -78,6 +81,9 @@ public class AuthController {
             String userAgent = httpRequest.getHeader("User-Agent");
             AuthResponse response = authService.login(request, userAgent);
             return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (DataAccessException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error("AUTH_UNAVAILABLE", "Session service is temporarily unavailable."));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("INVALID_CREDENTIALS", "Invalid credentials."));

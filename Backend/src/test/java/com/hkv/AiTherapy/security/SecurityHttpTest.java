@@ -133,6 +133,17 @@ class SecurityHttpTest {
     }
 
     @Test
+    void databaseOutageIsReportedAsUnavailableDuringLogin() throws Exception {
+        when(authService.login(any(), any()))
+                .thenThrow(new RedisConnectionFailureException("fixture unavailable"));
+        mvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"fixture@example.invalid\",\"password\":\"synthetic-password\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("AUTH_UNAVAILABLE"));
+    }
+
+    @Test
     void unsignedWebhookIsRejectedWithoutJwt() throws Exception {
         mvc.perform(post("/payment/webhook")
                         .contentType(MediaType.APPLICATION_JSON)
