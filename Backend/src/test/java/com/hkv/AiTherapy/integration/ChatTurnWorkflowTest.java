@@ -253,7 +253,7 @@ class ChatTurnWorkflowTest {
     }
 
     @Test
-    void legacyChatEndpointFailsBeforePersistingOrCallingAnExternalProvider() throws Exception {
+    void legacySessionApiShapeRoutesToAccountedBedrockWorkflowWithoutProviderFallback() throws Exception {
         User user = createUser();
         when(jwtTokenProvider.validateToken("synthetic-legacy-token")).thenReturn(true);
         when(jwtTokenProvider.getJti("synthetic-legacy-token")).thenReturn("synthetic-legacy-jti");
@@ -267,8 +267,32 @@ class ChatTurnWorkflowTest {
 
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
+        assertEquals(201, response.statusCode(), response.body());
+        assertEquals(1, conversations.findAll().stream().filter(value -> value.getUser().getId().equals(user.getId())).count());
+        assertEquals(1, messages.findAll().stream().filter(value -> value.getConversation().getUser().getId().equals(user.getId())).count());
+        verify(gateway, times(1)).generate(any(), any());
+    }
+
+    @Test
+    void legacyStreamFailsBeforePersistingOrCallingAnyProvider() throws Exception {
+        User user = createUser();
+        Conversation conversation = createConversation(user);
+        when(jwtTokenProvider.validateToken("synthetic-legacy-token")).thenReturn(true);
+        when(jwtTokenProvider.getJti("synthetic-legacy-token")).thenReturn("synthetic-legacy-jti");
+        when(jwtTokenProvider.getAuthentication("synthetic-legacy-token")).thenReturn(
+                new UsernamePasswordAuthenticationToken(user.getId().toString(), null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                        + "/api/v1/chat/sessions/" + conversation.getId() + "/stream"))
+                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer synthetic-legacy-token")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"content\":\"synthetic\"}" )).build();
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
         assertEquals(503, response.statusCode());
-        assertEquals(0, conversations.findAll().stream().filter(value -> value.getUser().getId().equals(user.getId())).count());
+        assertEquals(0, messages.countByConversationId(conversation.getId()));
+        verifyNoInteractions(gateway);
     }
 
     @Test

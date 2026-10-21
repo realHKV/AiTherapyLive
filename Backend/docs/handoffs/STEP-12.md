@@ -4,7 +4,7 @@ Status: **complete**. Implementation commit: `93dd717`; cancellation-test stabil
 
 ## Shipped
 
-- Removed the OpenAI-compatible/Groq adapter and all runtime API-key/base-URL settings. `DisabledLegacyAIGateway` is network-free and returns a sanitized 503. Unversioned session/message/stream calls fail closed. Clients must send the v2 version headers; frontend migration is planned in Step 17.
+- Removed the OpenAI-compatible/Groq adapter and all runtime API-key/base-URL settings. `DisabledLegacyAIGateway` is network-free and returns a sanitized 503 if an old internal service path is invoked. Unversioned session/message request shapes route through the accounted v2 workflow with a server-generated idempotency key when absent. Unversioned SSE returns 503 until the frontend migrates to v2 named events in Step 17.
 - The `production` profile rejects missing app secrets, placeholder values, non-HTTPS CORS, local or non-verified-SSL PostgreSQL, Redis without TLS, disabled Bedrock/routing/v2/extraction, region mismatch, and dev mode. AWS credentials remain on the AWS SDK default provider chain; ECS should use a least-privilege task role.
 - Added Actuator probes. Readiness checks PostgreSQL and Redis, liveness checks process state only, health details stay hidden, and metrics endpoints require authentication. Bedrock is not a health dependency.
 - Added JSON console logs and bounded correlation IDs, propagated through the chat worker executor. Logs and metric labels do not contain prompts, message text, account identifiers, or credentials.
@@ -20,4 +20,4 @@ Status: **complete**. Implementation commit: `93dd717`; cancellation-test stabil
 
 ## AWS items before live Bedrock testing
 
-The user selected Mumbai (`ap-south-1`) but has not configured AWS yet. Before the later AWS evaluation, confirm model availability/access and approved model IDs for greeting/chat/summary, enable the needed Bedrock permissions on a task role (no static keys), and set the selected pricing/account limits. Production deployment will also need RDS/Redis endpoints and secrets, TLS, and existing app secrets. Keep Bedrock disabled until these are verified. The frontend must migrate to v2 before legacy chat can be used again.
+The user selected Mumbai (`ap-south-1`) but has not configured AWS yet. Before the later AWS evaluation, confirm model availability/access and approved model IDs for greeting/chat/summary, enable the needed Bedrock permissions on a task role (no static keys), and set the selected pricing/account limits. Production deployment will also need RDS/Redis endpoints and secrets, TLS, and existing app secrets. Keep Bedrock disabled until these are verified. The frontend must migrate its streaming caller to the v2 named-event contract before streaming is enabled.

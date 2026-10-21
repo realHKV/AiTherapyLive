@@ -44,7 +44,8 @@ public class ChatController {
             requireV2(version, "X-Chat-Request-Version");
             return ResponseEntity.ok(ApiResponse.success(workflow().startSession(UUID.fromString(userId), idempotencyKey)));
         }
-        throw legacyChatDisabled("X-Chat-Request-Version");
+        ConversationResponse response = workflow().startSession(UUID.fromString(userId), effectiveKey(idempotencyKey));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @PostMapping("/{sessionId}/messages")
@@ -58,7 +59,9 @@ public class ChatController {
             ChatMessageResponse response = workflow().submit(UUID.fromString(userId), sessionId, idempotencyKey, request.getContent());
             return ResponseEntity.ok(ApiResponse.success(response));
         }
-        throw legacyChatDisabled("X-Chat-Request-Version");
+        ChatMessageResponse response = workflow().submit(UUID.fromString(userId), sessionId,
+                effectiveKey(idempotencyKey), request.getContent());
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PutMapping("/{sessionId}/end")
@@ -122,5 +125,9 @@ public class ChatController {
     private static ResponseStatusException legacyChatDisabled(String header) {
         return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                 "This chat API version is no longer enabled. Update the client to use version 2 with " + header + ".");
+    }
+
+    private static String effectiveKey(String supplied) {
+        return supplied == null || supplied.isBlank() ? UUID.randomUUID().toString() : supplied;
     }
 }

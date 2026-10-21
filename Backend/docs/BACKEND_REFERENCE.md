@@ -66,7 +66,7 @@ Extraction jobs are stored in PostgreSQL and claimed with leases. There is no se
 
 `ChatController → ChatService → PromptBuilder / AIGateway / repositories`.
 
-Legacy requests without a version header keep the existing ChatService/AIGateway behavior for the current frontend. Step 10 adds an isolated v2 path, activated per request with `X-Chat-Request-Version: 2` or `X-Chat-Stream-Version: 2`, and only when both `AI_CHAT_V2_ENABLED` and `AI_ROUTING_ENABLED` are true.
+Requests with `X-Chat-Request-Version: 2` or `X-Chat-Stream-Version: 2` use the v2 contract. For frontend compatibility, unversioned session creation and synchronous message submission are adapters to the same accounted v2 workflow; missing idempotency keys are generated server-side. They do not call a legacy provider. Unversioned SSE returns 503 until the frontend adopts the v2 named-event stream. The workflow requires both `AI_CHAT_V2_ENABLED` and `AI_ROUTING_ENABLED`.
 
 V2 session start, synchronous message submission, and streaming use durable user-scoped idempotency. A repeated active-session start reuses the session and does not generate another greeting. Chat turns are stored in `chat_turns`, linked to `ai_requests`, and retrievable through `GET /chat/requests/{requestId}`. User ownership, active state, and context eligibility are checked under row locks; a partial unique index permits only one active conversation per account. Session end is idempotent and sends a cancellation event after commit.
 
@@ -74,11 +74,11 @@ V2 reserves usage and persists the user turn in a short PostgreSQL transaction, 
 
 V2 assembles no more than 20 recent messages and ranks a bounded set of 50 eligible memories using topic overlap, follow-up due date, recency, and importance. It excludes pending, expired, stale-revision, and ineligible-source memories and includes only the latest context-valid session summary. Input reservation estimates use four characters per token until provider usage is available. These limits and the lightweight topic ranker are operational safeguards, not semantic-search guarantees.
 
-The legacy session start still creates a new conversation and calls the old provider path; legacy normal-message and stream calls retain their prior transaction, error-marker, and cancellation limitations. Keep v2 disabled until Phase F/Step 13 validates the frontend and deployment settings.
+Legacy HTTP session/message response envelopes are preserved by the v2 adapter. The legacy SSE wire format is disabled because it cannot provide v2 cancellation, accounting, and terminal-state guarantees. The frontend must migrate its streaming caller before the stream endpoint is available again.
 
 [PromptBuilder](../src/main/java/com/hkv/AiTherapy/service/ai/PromptBuilder.java) uses the profile name, age, persona, style, topics, top five traits, and five most important unresolved memories. Missing profiles get a short fallback prompt. Due-follow-up and last-completed-session repository methods exist but are not used by this builder. There is no enforced prompt token budget.
 
-The `GenerationRouter` selects model IDs from deployment policy and effective server-side entitlement. It sends generation to the Bedrock Converse adapter, with durable usage reservations and token settlement. The old `AIGateway` bean is now a fail-closed compatibility guard; it performs no network calls. `DisabledLegacyAIGateway` returns 503 for unversioned legacy chat. Clients must opt into the v2 chat and SSE headers until the frontend migration is complete.
+The `GenerationRouter` selects model IDs from deployment policy and effective server-side entitlement. It sends generation to the Bedrock Converse adapter, with durable usage reservations and token settlement. The old `AIGateway` bean is now a fail-closed compatibility guard; it performs no network calls. `DisabledLegacyAIGateway` returns 503 if any old internal service path is invoked directly.
 
 ### Summarization and scheduled work
 
