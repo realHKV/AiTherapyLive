@@ -1,6 +1,6 @@
 # Step 03 handoff — purchase ownership and entitlements
 
-Status: **in progress**. The local implementation and unit/HTTP tests pass, but PostgreSQL migration and simultaneous capture tests cannot run here because Docker and local database services are unavailable. No live Razorpay account or test-mode Checkout was used.
+Status: **in progress**. PostgreSQL migration and simultaneous capture/replay checks passed in Step 13 GitHub Actions run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817). Razorpay test-mode Checkout, provider fetch, and webhook validation still require account credentials and are not complete.
 
 ## Outcome and files
 
@@ -18,11 +18,11 @@ Status: **in progress**. The local implementation and unit/HTTP tests pass, but 
 
 ## Checks not run and rollout
 
-- Run V5 migration and Hibernate schema validation on an empty and upgraded PostgreSQL database. Test concurrent webhook/manual capture for the same order and for the same payment across different orders. Verify exactly one payment row, purchase capture, and entitlement extension under real row locks/unique constraints.
+- V5 migration and Hibernate validation ran in CI on PostgreSQL. Concurrent callbacks for one order grant one subscription period; reusing one payment ID on a second purchase is rejected without granting the second account. These database gates passed in Step 13.
 - Exercise Razorpay test-mode order creation, Checkout, manual fetch, webhook delivery/retry, and duplicate event behavior. Provider API shape was checked against [Razorpay's server-side order guidance](https://razorpay.com/docs/server-integration/python/test-app/) but not invoked with account credentials.
 - The current frontend opens a shared fixed payment link and cannot use the new order-based flow. Do not deploy this backend payment change for paid traffic until the Phase F frontend creates purchases and starts Checkout with the returned order ID. Existing payments already captured before V5 are not retroactively linked or re-granted.
 - Reverting the code after V5 is applied leaves the additive `purchases` table; do not edit or remove the applied migration. Rolling back a payment grant requires an explicit account/payment reconciliation, not just a code rollback. Current account deletion cascades payment and purchase rows; financial retention policy remains a separate product/legal decision.
 
 ## Next work
 
-Complete the PostgreSQL concurrency/migration gate and Razorpay test-mode fixture. Step 04 framework work can proceed independently while this gate remains open. Frontend order-based Checkout belongs to Phase F.
+Complete the Razorpay test-mode fixture when account access is available. Frontend order-based Checkout belongs to Phase F.

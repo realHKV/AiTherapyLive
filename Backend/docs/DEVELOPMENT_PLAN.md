@@ -41,7 +41,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 00 | Baseline and reproducible local environment | In progress | Rewritten commit `7c0cc58`; [Step 00 handoff](handoffs/STEP-00.md); container gate pending |
 | 01 | Production authorization and secret/log fixes | Complete | Rewritten commit `3ed4ff5`; [Step 01 handoff](handoffs/STEP-01.md) |
 | 02 | Authentication lifecycle and account deletion | In progress | [Step 02 handoff](handoffs/STEP-02.md); Docker and IdP fixture gates pending |
-| 03 | Payment verification and entitlement correctness | In progress | [Step 03 handoff](handoffs/STEP-03.md); real PostgreSQL duplicate-callback test is part of Step 13; live gateway remains a Step 16 gate |
+| 03 | Payment verification and entitlement correctness | In progress | PostgreSQL migration, duplicate-callback, and cross-purchase replay gates passed in Step 13 CI; [Step 03 handoff](handoffs/STEP-03.md); Razorpay test-mode validation remains a Step 16 gate |
 | 04 | Spring Boot and dependency upgrade checkpoints | In progress | 3.5.16 `2218e61`, 4.0.8 `6716cea`, 4.1.1 `1091d87`; [Step 04 handoff](handoffs/STEP-04.md); database/schema and scan gates pending |
 | 05 | HTTP and streaming contract specification | Complete | `ea822ab`; [Step 05 handoff](handoffs/STEP-05.md); frozen current contract in `docs/api/` |
 | 06 | Schema, profiles, and memory consistency | Complete | `55ce2db`; [Step 06 handoff](handoffs/STEP-06.md); PostgreSQL/Redis CI passed 53 tests |
@@ -51,7 +51,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 10 | Transaction-safe chat and streaming lifecycle | Complete | `3a1da29`; [Step 10 handoff](handoffs/STEP-10.md); PostgreSQL/Redis CI passed 81 tests with no skips |
 | 11 | Durable summaries and extraction jobs | Complete | [Step 11 handoff](handoffs/STEP-11.md); PostgreSQL/Redis integration and retry/replay coverage passed in CI |
 | 12 | Bedrock-only configuration and operational readiness | Complete | `93dd717`–`6900723`; [Step 12 handoff](handoffs/STEP-12.md); final PostgreSQL/Redis CI passed 98 tests |
-| 13 | Backend regression and contract freeze | In progress | Error and API contracts aligned; local suite passed; PostgreSQL/Redis CI gate pending; [Step 13 handoff](handoffs/STEP-13.md) |
+| 13 | Backend regression and contract freeze | Complete | `28ee148`–`db1c9c7`; [Step 13 handoff](handoffs/STEP-13.md); PostgreSQL/Redis CI run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817) passed all 104 tests |
 | 14 | Docker image and CI publishing workflow | Pending | — |
 | 15 | ECS Fargate infrastructure and release workflow | Pending | — |
 | 16 | Staging deployment and restore/rollback rehearsal | Pending | — |
@@ -186,7 +186,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 ### Step 13 — Run backend acceptance and freeze the release contract
 
-**Progress:** in progress. The OpenAPI and streaming documents now describe implemented behavior, including the disabled legacy stream and v2 event contract. JSON API errors use a consistent envelope across controller validation, security, OAuth callback rejection, and rate limiting. Added focused HTTP error/memory relevance tests and PostgreSQL acceptance for concurrent duplicate payment callbacks and confirmed/source-eligible memory filtering. Local Maven discovered 103 tests: 79 passed and 24 container-backed tests were skipped because Docker is unavailable. The full PostgreSQL/Redis CI run is the remaining local acceptance gate. AWS Bedrock and Google staging calls remain separately tracked in Step 16 because no AWS services or credentials have been set up.
+**Progress:** complete. GitHub Actions run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817) passed all 104 tests with PostgreSQL and Redis containers and no skips. The OpenAPI and streaming specifications now describe implemented behavior, including the disabled legacy stream and v2 event contract; no documented operation is labeled as pending. JSON API errors use a consistent envelope across controller validation, framework 404s, security, OAuth callback identity rejection, and rate limiting. PostgreSQL acceptance covers concurrent duplicate callbacks, cross-purchase payment replay, same-key encrypted-data readability through a fresh service instance, confirmed/source-eligible memory filtering, extraction retries/deletion races, usage limits, and replica advisory locking. The local suite discovered 104 tests: 79 passed and 25 container-backed tests were skipped because Docker is unavailable. Real Bedrock, Google identity-provider, and Razorpay test-mode calls remain Step 16 gates because those accounts/services have not been configured.
 
 **Read:** all previous handoffs, API/stream specifications, current reference, and AWS acceptance matrix.
 
