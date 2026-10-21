@@ -1,6 +1,6 @@
 # Step 14 handoff — backend container and release workflow
 
-Status: **implementation complete; Docker Hub publication pending** on `codex/backend-baseline` at `14f6b2e`. No image has been published and no digest has been recorded. The user supplied `realhkv/aitherapy-backend` as the intended destination; its creation and visibility have not been independently verified. Docker Hub push credentials have not been configured.
+Status: **complete**. Commit `c4972e6f840f76a0cc82072932b8d842e323050c` was tagged `backend-image-20261021-c4972e6` and published to Docker Hub by [release run 39589373190](https://github.com/realHKV/AiTherapyLive/actions/runs/39589373190). The release scan and metadata upload passed. The immutable image reference is `realhkv/aitherapy-backend@sha256:616ce6d782766107abe713a84cf3782a1cf865afb788013b4668718a4242f585` (`linux/amd64`). The [release manifest](../releases/STEP-14-image.json) copies the workflow artifact exactly.
 
 ## Work completed
 
@@ -15,14 +15,14 @@ Status: **implementation complete; Docker Hub publication pending** on `codex/ba
 - Local Maven package and dependency tree passed with Tomcat 11.0.27. Local tests: 104 discovered, 79 passed, 25 container tests skipped because Docker is unavailable to this checkout; zero failures/errors. The standalone migrator classpath starts and exits 2 with the expected missing `DATABASE_URL` message.
 - GitHub Actions run [39584616439](https://github.com/realHKV/AiTherapyLive/actions/runs/39584616439) passed Maven verification, image build, dependency scan, non-root and missing-config checks, real PostgreSQL migration/idempotence, app readiness, and shutdown. Its final image scan failed on Tomcat 11.0.24, leading to the patch above.
 - GitHub Actions [run 39585217236](https://github.com/realHKV/AiTherapyLive/actions/runs/39585217236) passed all 104 tests with zero failures/errors/skips, image build, dependency and image scans, non-root and missing-config checks, real PostgreSQL migration/idempotence, server readiness, and graceful shutdown. No local Docker image test was possible because the local Docker socket is unavailable.
-- Final source/workflow commit [run 39586459534](https://github.com/realHKV/AiTherapyLive/actions/runs/39586459534) also passed both CI jobs, including all 104 tests and both scans.
+- Tagged source/workflow commit [run 39588906440](https://github.com/realHKV/AiTherapyLive/actions/runs/39588906440) passed both CI jobs, including all 104 tests and both scans. The release workflow repeated Maven verification, pushed the image with SBOM/provenance attestations, scanned the published digest, and uploaded the JSON promotion artifact successfully.
 
 ## Registry setup and promotion
 
-1. Confirm that `realhkv/aitherapy-backend` exists and is **Private** in Docker Hub. A private repository keeps the release artifact access controlled; Step 15 must then configure ECS `repositoryCredentials` with a separate read-only pull token. The GitHub source repository is public, but that does not require the image repository to be public.
+1. The repository `realhkv/aitherapy-backend` accepted the push and authenticated scan. The user was advised to make it **Private**; its visibility was not independently verified. For a private image, Step 15 must configure ECS `repositoryCredentials` with a separate read-only pull token. The GitHub source repository is public, but that does not require the image repository to be public.
 2. The GitHub `backend-release` environment and its nonsecret variables `DOCKERHUB_NAMESPACE=realhkv` and `DOCKERHUB_REPOSITORY=aitherapy-backend` are configured. Both environment secrets, `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, are present by name. The environment permits `main` and `backend-image-*` tags only. Docker Hub personal token repository permissions currently apply to every repository that account can access; an organization access token can be repository-scoped if you later move to an organization. Keep this write token only in the GitHub environment. Do not put it in Git, chat, build arguments, or issue comments.
-3. After the exact backend branch tip passes CI, push one `backend-image-*` tag at that commit. The tag triggers the release workflow, which verifies it still points to the tested backend branch tip. This publishes the image without merging application changes into `main` before Step 20. The workflow never publishes from pull requests or arbitrary branches.
-4. Copy the `backend-image-release-<commit>` artifact's exact digest into the Step 15 task definition and release record. Do not substitute the mutable tag for the digest. Keep the JSON artifact as the promotion record. No digest is claimed before publication.
+3. The controlled tag `backend-image-20261021-c4972e6` triggered the release workflow at the exact CI-tested branch tip. It published the image without merging application changes into `main` before Step 20. The workflow never publishes from pull requests or arbitrary branches.
+4. Step 15 must reference the exact digest in [the release manifest](../releases/STEP-14-image.json), not the mutable `sha-<commit>` tag. Keep the GitHub Actions JSON artifact as the independent promotion record.
 
 ## Compatibility, rollout, and rollback
 

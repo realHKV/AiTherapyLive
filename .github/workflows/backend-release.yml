@@ -30,7 +30,7 @@ jobs:
         run: |
           branch_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/codex/backend-baseline" --jq .object.sha)
           test "$branch_sha" = "$GITHUB_SHA"
-      - name: Require a successful image gate for this main commit
+      - name: Require a successful image gate for this commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -60,7 +60,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and publish immutable commit tag
+      - name: Build and publish commit-derived tag
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:

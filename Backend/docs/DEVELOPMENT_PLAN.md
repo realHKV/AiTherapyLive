@@ -52,7 +52,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 11 | Durable summaries and extraction jobs | Complete | [Step 11 handoff](handoffs/STEP-11.md); PostgreSQL/Redis integration and retry/replay coverage passed in CI |
 | 12 | Bedrock-only configuration and operational readiness | Complete | `93dd717`–`6900723`; [Step 12 handoff](handoffs/STEP-12.md); final PostgreSQL/Redis CI passed 98 tests |
 | 13 | Backend regression and contract freeze | Complete | `28ee148`–`db1c9c7`; [Step 13 handoff](handoffs/STEP-13.md); PostgreSQL/Redis CI run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817) passed all 104 tests |
-| 14 | Docker image and CI publishing workflow | In progress | `88fe40d`–`89105d1`; [Step 14 handoff](handoffs/STEP-14.md); [CI run 39587096125](https://github.com/realHKV/AiTherapyLive/actions/runs/39587096125) passed tests, image build, migration/server smoke and scans; controlled release tag will publish without merging into `main` |
+| 14 | Docker image and CI publishing workflow | Complete | `88fe40d`–`c4972e6`; [Step 14 handoff](handoffs/STEP-14.md); [CI run 39588906440](https://github.com/realHKV/AiTherapyLive/actions/runs/39588906440) passed all 104 tests, image build, migration/server smoke and scans; [release run 39589373190](https://github.com/realHKV/AiTherapyLive/actions/runs/39589373190) published and scanned the [recorded digest](releases/STEP-14-image.json) |
 | 15 | ECS Fargate infrastructure and release workflow | Pending | — |
 | 16 | Staging deployment and restore/rollback rehearsal | Pending | — |
 | 17 | Backend handoff package for frontend | Pending | — |
