@@ -13,6 +13,9 @@ import java.util.UUID;
 public interface PurchaseRepository extends JpaRepository<Purchase, UUID> {
     Optional<Purchase> findByRazorpayOrderId(String razorpayOrderId);
 
+    @Query("SELECT p.user.id FROM Purchase p WHERE p.razorpayOrderId = :orderId")
+    Optional<UUID> findUserIdByRazorpayOrderId(@Param("orderId") String orderId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Purchase p WHERE p.razorpayOrderId = :orderId")
     Optional<Purchase> findByOrderIdForUpdate(@Param("orderId") String orderId);

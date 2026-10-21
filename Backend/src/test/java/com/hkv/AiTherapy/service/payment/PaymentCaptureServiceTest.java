@@ -42,6 +42,7 @@ class PaymentCaptureServiceTest {
                 .currency("INR").status("PENDING").build();
         subscription = UserSubscription.builder().user(owner).tier("FREE").build();
         when(purchases.findByRazorpayOrderId("order_fixture123")).thenReturn(Optional.of(purchase));
+        when(purchases.findUserIdByRazorpayOrderId("order_fixture123")).thenReturn(Optional.of(owner.getId()));
         when(users.findByIdForUpdate(owner.getId())).thenReturn(Optional.of(owner));
         when(purchases.findByOrderIdForUpdate("order_fixture123")).thenReturn(Optional.of(purchase));
         when(subscriptions.findByUserId(owner.getId())).thenReturn(Optional.of(subscription));

@@ -36,9 +36,8 @@ public class PaymentCaptureService {
         if (details == null || details.orderId() == null || details.orderId().isBlank()) {
             throw new IllegalArgumentException("Payment is not linked to a purchase");
         }
-        Purchase reference = purchases.findByRazorpayOrderId(details.orderId())
+        UUID ownerId = purchases.findUserIdByRazorpayOrderId(details.orderId())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown purchase"));
-        UUID ownerId = reference.getUser().getId();
         if (expectedUserId != null && !expectedUserId.equals(ownerId)) {
             throw new IllegalArgumentException("Payment belongs to another account");
         }

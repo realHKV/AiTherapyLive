@@ -105,7 +105,7 @@ class ProfileMemoryPersistenceTest {
                 .contextEligible(false).build());
         memoryRepository.save(LongTermMemory.builder().user(user).sourceConversation(suppressed)
                 .memoryType("goal").title("Forgotten manager concern").importance(10)
-                .status("active").sourceKind("manual").confirmedAt(java.time.Instant.now())
+                .status("active").sourceKind("user_saved").confirmedAt(java.time.Instant.now())
                 .sourceRevision(user.getContextRevision()).build());
 
         String prompt = promptBuilder.buildSystemPrompt(user.getId(), "work anxiety", 600);
