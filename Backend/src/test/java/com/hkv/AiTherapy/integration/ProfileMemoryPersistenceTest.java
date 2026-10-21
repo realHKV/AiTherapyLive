@@ -229,6 +229,30 @@ class ProfileMemoryPersistenceTest {
         assertTrue(subscription.getProExpiresAt().isBefore(java.time.Instant.now().plus(31, java.time.temporal.ChronoUnit.DAYS)));
     }
 
+    @Test
+    void onePaymentIdCannotGrantTwoPurchases() {
+        User firstUser = users.save(User.builder().email("payment-owner-a-" + UUID.randomUUID() + "@example.invalid").build());
+        User secondUser = users.save(User.builder().email("payment-owner-b-" + UUID.randomUUID() + "@example.invalid").build());
+        String firstOrder = "order_" + UUID.randomUUID().toString().replace("-", "");
+        String secondOrder = "order_" + UUID.randomUUID().toString().replace("-", "");
+        String paymentId = "pay_" + UUID.randomUUID().toString().replace("-", "");
+        purchases.saveAndFlush(Purchase.builder().id(UUID.randomUUID()).user(firstUser).razorpayOrderId(firstOrder)
+                .expectedAmountPaise(5000).currency("INR").status("PENDING").build());
+        purchases.saveAndFlush(Purchase.builder().id(UUID.randomUUID()).user(secondUser).razorpayOrderId(secondOrder)
+                .expectedAmountPaise(5000).currency("INR").status("PENDING").build());
+
+        paymentCaptureService.capture(new RazorpayClient.PaymentDetails(paymentId, firstOrder, 5000, "INR", "captured"),
+                firstUser.getId());
+        assertThrows(IllegalArgumentException.class,
+                () -> paymentCaptureService.capture(new RazorpayClient.PaymentDetails(paymentId, secondOrder,
+                        5000, "INR", "captured"), secondUser.getId()));
+
+        assertEquals("PRO", subscriptions.findByUserId(firstUser.getId()).orElseThrow().getTier());
+        assertTrue(subscriptions.findByUserId(secondUser.getId()).isEmpty());
+        assertEquals(1, paymentRepository.findAll().stream()
+                .filter(payment -> paymentId.equals(payment.getRazorpayPaymentId())).count());
+    }
+
     private Callable<UUID> captureAfterBarrier(CyclicBarrier start, RazorpayClient.PaymentDetails details, UUID userId) {
         return () -> {
             start.await();
