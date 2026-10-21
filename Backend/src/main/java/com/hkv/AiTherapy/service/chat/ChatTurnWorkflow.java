@@ -155,7 +155,7 @@ public class ChatTurnWorkflow {
             GenerationResult result = callSync(prepared);
             Message assistant = persistSuccess(prepared.requestId(), result);
             if (assistant == null) throw conflict("Conversation ended before the response completed");
-            return map(assistant);
+            return map(assistant, prepared.conversationId());
         } catch (CallFailure e) {
             persistFailure(prepared.requestId(), e.failure(), e.providerAttempted(), false);
             throw providerError(e.failure());
@@ -284,7 +284,8 @@ public class ChatTurnWorkflow {
                     ? GenerationUsage.unknown()
                     : new GenerationUsage(request.getActualInputTokens(), request.getActualOutputTokens());
             return new ChatRequestStatusResponse(requestId.toString(), turn.getConversation().getId().toString(),
-                    turn.getStatus().toLowerCase(), turn.getFailureCode(), map(turn.getAssistantMessage()), usage);
+                    turn.getStatus().toLowerCase(), turn.getFailureCode(),
+                    map(turn.getAssistantMessage(), turn.getConversation().getId()), usage);
         }));
     }
 
@@ -546,7 +547,7 @@ public class ChatTurnWorkflow {
 
     private ChatMessageResponse replayMessage(UUID userId, Prepared prepared) {
         if ("COMPLETED".equals(prepared.replayStatus()) && prepared.assistantMessage() != null)
-            return map(prepared.assistantMessage());
+            return map(prepared.assistantMessage(), prepared.conversationId());
         throw providerError(failureFromCode(prepared.replayFailure()));
     }
 
@@ -576,7 +577,7 @@ public class ChatTurnWorkflow {
     private ConversationResponse conversationResponse(Conversation conversation, Message message) {
         return ConversationResponse.builder().id(conversation.getId().toString()).status(conversation.getStatus())
                 .startedAt(conversation.getStartedAt()).tokenCount(conversation.getTokenCount())
-                .recentMessages(message == null ? List.of() : List.of(map(message))).build();
+                .recentMessages(message == null ? List.of() : List.of(map(message, conversation.getId()))).build();
     }
 
     private static void sendStart(SseEmitter emitter, Prepared prepared) throws IOException {
@@ -600,10 +601,10 @@ public class ChatTurnWorkflow {
         try { admission.releaseLease(userId, requestId); } catch (RuntimeException ignored) { }
     }
 
-    private static ChatMessageResponse map(Message message) {
+    private static ChatMessageResponse map(Message message, UUID conversationId) {
         if (message == null) return null;
         return ChatMessageResponse.builder().id(message.getId().toString())
-                .conversationId(message.getConversation().getId().toString()).senderRole(message.getRole())
+                .conversationId(conversationId.toString()).senderRole(message.getRole())
                 .content(message.getContent()).sentAt(message.getCreatedAt()).build();
     }
 

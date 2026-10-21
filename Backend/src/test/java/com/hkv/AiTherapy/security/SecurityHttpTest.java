@@ -138,7 +138,7 @@ class SecurityHttpTest {
                         .header("Access-Control-Request-Method", "POST")
                         .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key,x-chat-stream-version"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("X-Chat-Stream-Version")))
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("x-chat-stream-version")))
                 .andExpect(header().string("Access-Control-Expose-Headers", org.hamcrest.Matchers.containsString("X-Request-Id")));
     }
 
