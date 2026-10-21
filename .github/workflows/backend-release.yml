@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: backend-image-release
@@ -18,6 +19,12 @@ jobs:
     environment: backend-release
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Require a successful image gate for this main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backend-tests.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" \
+            | jq -e --arg sha "$GITHUB_SHA" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
       - name: Require configured Docker Hub destination
         env:
           NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
@@ -69,6 +76,7 @@ jobs:
           IMAGE: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           jq -n --arg source "$GITHUB_REPOSITORY" --arg commit "$GITHUB_SHA" --arg image "$IMAGE" --arg digest "$DIGEST" --arg platform 'linux/amd64' '{source:$source,commit:$commit,image:$image,digest:$digest,platform:$platform}' > backend-image-release.json
           printf 'Image: `%s@%s`\n' "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
