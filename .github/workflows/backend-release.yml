@@ -1,0 +1,78 @@
+name: Backend image release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-image-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.repository == 'realHKV/AiTherapyLive'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: backend-release
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Require configured Docker Hub destination
+        env:
+          NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$NAMESPACE" && test -n "$REPOSITORY" && test -n "$USERNAME" && test -n "$TOKEN"
+          [[ "$NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+          [[ "$REPOSITORY" =~ ^[a-z0-9][a-z0-9._-]*$ ]]
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: Backend/pom.xml
+      - name: Verify backend before release
+        working-directory: Backend
+        run: bash ./mvnw -B verify
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and publish immutable commit tag
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: Backend
+          platforms: linux/amd64
+          pull: true
+          push: true
+          tags: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}:sha-${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Scan published digest
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+      - name: Record release identity
+        env:
+          IMAGE: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          jq -n --arg source "$GITHUB_REPOSITORY" --arg commit "$GITHUB_SHA" --arg image "$IMAGE" --arg digest "$DIGEST" --arg platform 'linux/amd64' '{source:$source,commit:$commit,image:$image,digest:$digest,platform:$platform}' > backend-image-release.json
+          printf 'Image: `%s@%s`\n' "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-image-release-${{ github.sha }}
+          path: backend-image-release.json
+          if-no-files-found: error

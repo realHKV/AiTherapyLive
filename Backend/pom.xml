@@ -167,6 +167,25 @@
 
 	<build>
 		<plugins>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-jar-plugin</artifactId>
+			<executions>
+				<execution>
+					<id>migration-only-jar</id>
+					<phase>package</phase>
+					<goals><goal>jar</goal></goals>
+					<configuration>
+						<classifier>migrator</classifier>
+						<includes>
+							<include>com/hkv/AiTherapy/migration/MigrationMain.class</include>
+							<include>db/migration/**</include>
+						</includes>
+						<archive><manifest><mainClass>com.hkv.AiTherapy.migration.MigrationMain</mainClass></manifest></archive>
+					</configuration>
+				</execution>
+			</executions>
+		</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

@@ -1,0 +1,7 @@
+.git
+target
+*.log
+.env*
+docs
+README.md
+compose.yaml
