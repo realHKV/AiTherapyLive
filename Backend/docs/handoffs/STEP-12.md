@@ -1,6 +1,6 @@
 # Step 12 handoff — Bedrock-only runtime and operations
 
-Status: **complete**. Implementation commit: `93dd717`; cancellation-test stabilization: `5369501` on `codex/backend-baseline`.
+Status: **complete**. Implementation commits: `93dd717`, `5369501`, `05ccc2a`, `8979848`, and `c1eccca` on `codex/backend-baseline`.
 
 ## Shipped
 
@@ -13,8 +13,8 @@ Status: **complete**. Implementation commit: `93dd717`; cancellation-test stabil
 
 ## Verification
 
-- GitHub Actions [run 39577386758](https://github.com/realHKV/AiTherapyLive/actions/runs/39577386758): 97 tests passed, zero failures/errors/skips. This included PostgreSQL/Redis lifecycle, actuator, and scheduled-lock tests.
-- Local clean Maven suite: 97 tests discovered, 76 passed, and 21 PostgreSQL/Redis container tests skipped because Docker is unavailable locally. Mockito required the local Byte Buddy agent option.
+- GitHub Actions [run 39578380283](https://github.com/realHKV/AiTherapyLive/actions/runs/39578380283): 98 tests passed, zero failures/errors/skips. This included PostgreSQL/Redis lifecycle, actuator, scheduled-lock, and legacy session compatibility tests.
+- Local clean Maven suite: 98 tests discovered, 76 passed, and 22 PostgreSQL/Redis container tests skipped because Docker is unavailable locally. Mockito required the local Byte Buddy agent option.
 - Focused Bedrock cancellation tests pass after replacing a race-prone mock verification with deterministic synchronization.
 - No live AWS request was made, and no AWS resources or credentials are required for this step.
 
