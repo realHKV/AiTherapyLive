@@ -98,7 +98,7 @@ Webhooks require HMAC-SHA256 over the raw body even in development mode; a missi
 
 ## 3. HTTP contract
 
-The Step 05 [OpenAPI draft](api/openapi.yaml), [contract decisions](api/README.md), and [streaming protocol](api/streaming.md) distinguish current routes from pending features. The implementation notes below remain a snapshot of current behavior.
+The frozen [OpenAPI contract](api/openapi.yaml), [contract decisions](api/README.md), and [streaming protocol](api/streaming.md) describe current routes and error behavior. The implementation notes below remain a snapshot of current behavior.
 
 Default server: `http://localhost:8080/api/v1`. Paths below are relative to `/api/v1`. Authenticated requests use `Authorization: Bearer <access-token>`. UUID ownership is checked in chat/memory services.
 

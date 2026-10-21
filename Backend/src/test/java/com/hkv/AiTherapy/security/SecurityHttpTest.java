@@ -98,8 +98,27 @@ class SecurityHttpTest {
     @Test
     void anonymousAccountDeletionIsRejected() throws Exception {
         mvc.perform(delete("/auth/account"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.error.code").value("AUTH_REQUIRED"))
+                .andExpect(jsonPath("$.error.message").value("Authentication is required."))
+                .andExpect(jsonPath("$.timestamp").exists());
         verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void invalidChatPayloadUsesStableValidationEnvelopeWithoutEchoingInput() throws Exception {
+        mvc.perform(post("/chat/sessions/00000000-0000-0000-0000-000000000002/messages")
+                        .header("Authorization", "Bearer synthetic-valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.error.details.content").value("Message content is required"))
+                .andExpect(jsonPath("$.error.details.content").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("   "))))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
@@ -154,8 +173,24 @@ class SecurityHttpTest {
     void developmentUpgradeRouteIsAbsentInNormalMode() throws Exception {
         mvc.perform(post("/dev/force-pro")
                         .header("Authorization", "Bearer synthetic-valid-token"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.timestamp").exists());
         verifyNoInteractions(subscriptionService);
+    }
+
+    @Test
+    void unversionedStreamFailsWithStableEnvelopeBeforeCallingWorkflow() throws Exception {
+        mvc.perform(post("/chat/sessions/{sessionId}/stream", UUID.randomUUID())
+                        .header("Authorization", "Bearer synthetic-valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"Synthetic message\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("PROVIDER_UNAVAILABLE"))
+                .andExpect(jsonPath("$.timestamp").exists());
+        verifyNoInteractions(chatTurnWorkflow);
     }
 
     @Test

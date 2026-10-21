@@ -1,11 +1,10 @@
 openapi: 3.0.3
 info:
   title: AI Therapy backend contract
-  version: 0.5.0-draft
+  version: 1.0.0
   description: |
-    Paths are relative to /api/v1. x-implementation=current means the route exists;
-    it does not imply every error is normalized. Step 06 routes passed the PostgreSQL gate; pending routes are future designs.
-    Existing /api/v1 request and success shapes remain compatible with the old client.
+    Backend release contract frozen in Step 13. Paths are relative to /api/v1. All documented operations are implemented and covered by backend acceptance checks.
+    JSON failures use the documented error envelope. Existing session/message request and success shapes remain compatible with the old client.
 servers:
   - url: /api/v1
 security:
@@ -124,7 +123,23 @@ paths:
       tags: [Chat]
       x-implementation: current
       description: Creates a conversation and generates its initial greeting.
+      parameters:
+        - name: X-Chat-Request-Version
+          in: header
+          required: false
+          description: Set to 2 to use durable idempotency and the v2 workflow; omitted requests preserve the legacy HTTP response envelope through the same accounted workflow.
+          schema: { type: string, enum: ['2'] }
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID for stable client retries; the server generates one for legacy requests when omitted.
+          schema: { type: string, format: uuid }
       responses:
+        '200':
+          description: Version 2 conversation in a success envelope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationEnvelope' }
         '201':
           description: Conversation in a success envelope
           content:
@@ -137,6 +152,17 @@ paths:
     post:
       tags: [Chat]
       x-implementation: current
+      parameters:
+        - name: X-Chat-Request-Version
+          in: header
+          required: false
+          description: Set to 2 to opt in to the versioned durable workflow.
+          schema: { type: string, enum: ['2'] }
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID for stable client retries; the server generates one for legacy requests when omitted.
+          schema: { type: string, format: uuid }
       requestBody: { $ref: '#/components/requestBodies/ChatMessage' }
       responses:
         '200':
@@ -144,7 +170,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChatMessageEnvelope' }
-        '404': { description: Conversation absent or owned by another user; body currently varies }
+        '404': { description: Conversation absent or owned by another user; standard error envelope }
   /chat/sessions/{sessionId}/stream:
     parameters:
       - { $ref: '#/components/parameters/SessionId' }
@@ -155,28 +181,27 @@ paths:
         - name: X-Chat-Stream-Version
           in: header
           required: false
-          x-implementation: pending-step-10
-          description: Set to 2 to opt into named JSON events after Step 10; omit for current chunks.
+          x-implementation: current
+          description: Set to 2 to opt into named JSON events. Omission returns 503 until the frontend migrates.
           schema: { type: string, enum: ['2'] }
         - name: Idempotency-Key
           in: header
           required: false
-          x-implementation: pending-step-10
-          description: Client UUID required when opting into stream version 2.
+          x-implementation: current
+          description: UUID required when opting into stream version 2.
           schema: { type: string, format: uuid }
       description: |
-        Current mode emits unnamed SSE data chunks with no start or terminal event.
-        The proposed X-Chat-Stream-Version=2 protocol is pending Step 10; see streaming.md.
+        Version 2 emits named JSON start/delta/terminal events. Requests without the version header fail closed with a stable 503 error envelope until the frontend migrates; see streaming.md.
       requestBody: { $ref: '#/components/requestBodies/ChatMessage' }
       responses:
         '200':
-          description: Current text/event-stream; chunks are plain text data payloads
+          description: Opt-in version 2 text/event-stream with named JSON events
           content:
             text/event-stream:
               schema: { type: string }
         '404': { description: Conversation absent or owned by another user }
-        '429': { description: Pending Step 08/10; Retry-After and X-Usage-Reset-At headers before stream start }
-        '503': { description: Pending Step 10; provider unavailable before stream start }
+        '429': { description: Request or usage limit reached before stream start; includes Retry-After and X-Usage-Reset-At }
+        '503': { description: Version omitted, accounting unavailable, or provider unavailable before stream start }
   /chat/sessions/{sessionId}/end:
     parameters:
       - { $ref: '#/components/parameters/SessionId' }
@@ -430,7 +455,7 @@ paths:
         schema: { type: string, format: uuid }
     get:
       tags: [Chat]
-      x-implementation: pending-step-10
+      x-implementation: current
       description: Read one owned generation's terminal or in-progress state after a disconnect.
       responses:
         '200': { description: Generation state, persisted message IDs, and settled usage }
@@ -484,7 +509,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/AuthEnvelope' }
     ServiceUnavailable:
-      description: Current controller-specific unavailable error envelope
+      description: Standard unavailable error envelope
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
@@ -504,6 +529,10 @@ components:
       properties:
         code: { type: string }
         message: { type: string }
+        details:
+          type: object
+          additionalProperties: { type: string }
+          description: Present for request validation failures; contains field names and safe constraint messages.
     ErrorEnvelope:
       allOf:
         - { $ref: '#/components/schemas/EnvelopeBase' }
@@ -560,7 +589,7 @@ components:
           properties:
             data: { $ref: '#/components/schemas/PurchaseResponse' }
     UsageEnvelope:
-      x-implementation: pending-step-08
+      x-implementation: current
       allOf:
         - { $ref: '#/components/schemas/EnvelopeBase' }
         - type: object
@@ -740,7 +769,7 @@ components:
           items: { type: string, enum: [detail, occurredAt, followUpAt] }
     UsageStatusResponse:
       type: object
-      x-implementation: pending-step-08
+      x-implementation: current
       required: [tier, policyId, resetAt]
       properties:
         tier: { type: string, enum: [FREE, PRO] }

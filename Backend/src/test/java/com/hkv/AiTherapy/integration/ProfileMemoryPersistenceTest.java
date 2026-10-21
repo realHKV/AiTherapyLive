@@ -1,12 +1,18 @@
 package com.hkv.AiTherapy.integration;
 
 import com.hkv.AiTherapy.domain.Conversation;
+import com.hkv.AiTherapy.domain.LongTermMemory;
+import com.hkv.AiTherapy.domain.Purchase;
 import com.hkv.AiTherapy.domain.User;
 import com.hkv.AiTherapy.dto.request.CreateMemoryRequest;
 import com.hkv.AiTherapy.dto.request.MemoryPatchRequest;
 import com.hkv.AiTherapy.dto.request.UpdateProfileRequest;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
+import com.hkv.AiTherapy.repository.LongTermMemoryRepository;
+import com.hkv.AiTherapy.repository.PaymentRepository;
+import com.hkv.AiTherapy.repository.PurchaseRepository;
+import com.hkv.AiTherapy.repository.UserSubscriptionRepository;
 import com.hkv.AiTherapy.security.JwtTokenProvider;
 import com.hkv.AiTherapy.service.memory.MemoryService;
 import com.hkv.AiTherapy.service.profile.ProfileService;
@@ -15,6 +21,9 @@ import com.hkv.AiTherapy.service.usage.UsageException;
 import com.hkv.AiTherapy.service.ai.routing.GenerationMessage;
 import com.hkv.AiTherapy.service.ai.routing.GenerationPurpose;
 import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
+import com.hkv.AiTherapy.service.ai.PromptBuilder;
+import com.hkv.AiTherapy.service.payment.PaymentCaptureService;
+import com.hkv.AiTherapy.service.payment.RazorpayClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -66,6 +75,45 @@ class ProfileMemoryPersistenceTest {
     @Autowired MemoryService memories;
     @Autowired JdbcTemplate jdbc;
     @Autowired UsageAccountingService usage;
+    @Autowired LongTermMemoryRepository memoryRepository;
+    @Autowired PromptBuilder promptBuilder;
+    @Autowired PaymentCaptureService paymentCaptureService;
+    @Autowired PurchaseRepository purchases;
+    @Autowired PaymentRepository paymentRepository;
+    @Autowired UserSubscriptionRepository subscriptions;
+
+    @Test
+    void promptRetrievalUsesOnlyConfirmedCurrentSourceEligibleMemories() {
+        User user = users.save(User.builder().email("memory-context-" + UUID.randomUUID() + "@example.invalid").build());
+        UpdateProfileRequest profile = new UpdateProfileRequest();
+        profile.setPreferredName("Synthetic");
+        profiles.updateProfile(user.getId(), profile);
+
+        CreateMemoryRequest confirmed = new CreateMemoryRequest();
+        confirmed.setType("goal");
+        confirmed.setTitle("Work anxiety coping plan");
+        confirmed.setDetail("Prepare for a manager conversation");
+        confirmed.setImportance(5);
+        memories.addManualMemory(user.getId(), confirmed);
+
+        memoryRepository.save(LongTermMemory.builder().user(user).memoryType("goal")
+                .title("Unconfirmed sensitive candidate").detail("Must never enter a prompt")
+                .importance(10).status("active").sourceKind("ai_inferred")
+                .sourceRevision(user.getContextRevision()).build());
+
+        Conversation suppressed = conversations.save(Conversation.builder().user(user).status("completed")
+                .contextEligible(false).build());
+        memoryRepository.save(LongTermMemory.builder().user(user).sourceConversation(suppressed)
+                .memoryType("goal").title("Forgotten manager concern").importance(10)
+                .status("active").sourceKind("manual").confirmedAt(java.time.Instant.now())
+                .sourceRevision(user.getContextRevision()).build());
+
+        String prompt = promptBuilder.buildSystemPrompt(user.getId(), "work anxiety", 600);
+        assertTrue(prompt.contains("Work anxiety coping plan"));
+        assertFalse(prompt.contains("Unconfirmed sensitive candidate"));
+        assertFalse(prompt.contains("Must never enter a prompt"));
+        assertFalse(prompt.contains("Forgotten manager concern"));
+    }
 
     @Test
     void profileMemoryOwnershipPaginationForgetAndResetPersist() {
@@ -152,6 +200,40 @@ class ProfileMemoryPersistenceTest {
             for (Future<Boolean> result : results) if (result.get()) accepted++;
             assertEquals(2, accepted);
         }
+    }
+
+    @Test
+    void concurrentDuplicatePaymentCallbacksGrantOneSubscriptionPeriod() throws Exception {
+        User user = users.save(User.builder().email("payment-race-" + UUID.randomUUID() + "@example.invalid").build());
+        String orderId = "order_" + UUID.randomUUID().toString().replace("-", "");
+        String paymentId = "pay_" + UUID.randomUUID().toString().replace("-", "");
+        purchases.saveAndFlush(Purchase.builder().id(UUID.randomUUID()).user(user).razorpayOrderId(orderId)
+                .expectedAmountPaise(5000).currency("INR").status("PENDING").build());
+        RazorpayClient.PaymentDetails details = new RazorpayClient.PaymentDetails(
+                paymentId, orderId, 5000, "INR", "captured");
+
+        CyclicBarrier start = new CyclicBarrier(2);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            List<Future<UUID>> results = executor.invokeAll(List.of(
+                    captureAfterBarrier(start, details, user.getId()),
+                    captureAfterBarrier(start, details, user.getId())));
+            assertEquals(user.getId(), results.get(0).get());
+            assertEquals(user.getId(), results.get(1).get());
+        }
+
+        assertEquals(1, paymentRepository.findAll().stream()
+                .filter(payment -> paymentId.equals(payment.getRazorpayPaymentId())).count());
+        var subscription = subscriptions.findByUserId(user.getId()).orElseThrow();
+        assertEquals("PRO", subscription.getTier());
+        assertTrue(subscription.getProExpiresAt().isAfter(java.time.Instant.now().plus(29, java.time.temporal.ChronoUnit.DAYS)));
+        assertTrue(subscription.getProExpiresAt().isBefore(java.time.Instant.now().plus(31, java.time.temporal.ChronoUnit.DAYS)));
+    }
+
+    private Callable<UUID> captureAfterBarrier(CyclicBarrier start, RazorpayClient.PaymentDetails details, UUID userId) {
+        return () -> {
+            start.await();
+            return paymentCaptureService.capture(details, userId);
+        };
     }
 
     private Callable<Boolean> reserveAfterBarrier(CyclicBarrier start, ResolvedGeneration generation, String key) {

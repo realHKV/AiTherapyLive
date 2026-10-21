@@ -1,6 +1,8 @@
 package com.hkv.AiTherapy.security;
 
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.User;
+import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.auth.OAuthTicketService;
@@ -8,6 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -23,6 +27,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final UserRepository userRepository;
     private final TherapyProfileRepository therapyProfileRepository;
     private final OAuthTicketService ticketService;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.auth.oauth-ticket-handoff:false}")
     private boolean ticketHandoff;
@@ -36,11 +41,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     public OAuth2SuccessHandler(JwtTokenProvider jwtTokenProvider,
                                 UserRepository userRepository,
                                 TherapyProfileRepository therapyProfileRepository,
-                                OAuthTicketService ticketService) {
+                                OAuthTicketService ticketService,
+                                ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
         this.therapyProfileRepository = therapyProfileRepository;
         this.ticketService = ticketService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -53,7 +60,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         if (email == null || email.isBlank() || subject == null || subject.isBlank()
                 || !Boolean.TRUE.equals(oAuth2User.getAttribute("email_verified"))) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Google identity is incomplete");
+            writeError(response, "AUTH_REQUIRED", "Google identity could not be verified.");
             return;
         }
 
@@ -71,7 +78,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                         }));
 
         if (!user.isActive() || (user.getOauthSubject() != null && !subject.equals(user.getOauthSubject()))) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Account unavailable");
+            writeError(response, "AUTH_REQUIRED", "Account is unavailable.");
             return;
         }
         if (user.getOauthSubject() == null) {
@@ -105,5 +112,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             request.getSession(false).invalidate();
         }
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
+    }
+
+    private void writeError(HttpServletResponse response, String code, String message) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        response.setHeader("Cache-Control", "no-store");
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));
     }
 }

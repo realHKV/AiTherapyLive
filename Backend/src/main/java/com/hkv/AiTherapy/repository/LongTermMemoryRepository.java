@@ -25,6 +25,7 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
         SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
            AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
            AND m.sourceRevision = m.user.contextRevision
            AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
            AND (sc.id IS NULL OR sc.contextEligible = true)
@@ -38,6 +39,7 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
     @Query("""
         SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
            AND m.sourceRevision = m.user.contextRevision
            AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
            AND (sc.id IS NULL OR sc.contextEligible = true)
@@ -55,6 +57,7 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
         SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
            AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
            AND m.sourceRevision = m.user.contextRevision
            AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
            AND (sc.id IS NULL OR sc.contextEligible = true)

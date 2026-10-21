@@ -4,7 +4,7 @@ The base URL includes `/api/v1`. The v1 stream is `POST /chat/sessions/{sessionI
 
 ## Legacy v1 stream
 
-Without `X-Chat-Stream-Version`, the server keeps the existing compatibility route: unnamed SSE `data:` events containing raw text chunks, no terminal event, and no reliable upstream cancellation. Provider errors may appear in the text stream. The current frontend's fallback URL omits `/api/v1`; Phase F will switch callers only after its acceptance tests pass.
+The old unnamed raw-text stream is disabled. Without `X-Chat-Stream-Version: 2`, the endpoint returns HTTP 503 with the standard JSON error envelope and does not persist a message or invoke a provider. This protects usage accounting, cancellation, and durable terminal state while the frontend migrates. The current frontend's fallback URL omits `/api/v1`; Phase F will switch callers only after its acceptance tests pass.
 
 ## Opt-in v2 lifecycle
 
@@ -39,6 +39,6 @@ The request key is retained with the durable usage and turn audit records until 
 - Memory retrieval considers only active, confirmed, unexpired, current-revision memories with eligible source conversations. It ranks topic overlap, due follow-ups, recency, and importance in process memory. The latest valid session summary is included within the system prompt budget. Stored profile, summary, and memory content is explicitly treated as untrusted context.
 - V2 uses a 15-second first-token deadline, 60-second total generation deadline, and 90-second emitter deadline by default. All are configurable. The async worker and queue are bounded. Redis admission fails closed; the PostgreSQL reservation is authoritative and an expired lease reconciler updates both usage and chat-turn state.
 - Client disconnect, generation deadline, or session end cancels upstream work where the gateway supports it. Failed or canceled turns retain the user message and durable request status; incomplete assistant text is not persisted. A late callback cannot complete a terminal request. Repeating session end does not increment the session count again.
-- The default application keeps v2 disabled. Legacy clients retain the v1 behavior while the frontend and full HTTP stream contract are validated in Phase F/Step 13.
+- The default application keeps v2 disabled unless routing and v2 are explicitly enabled. Legacy HTTP session/message requests use the accounted workflow, but unversioned stream calls return 503 until the frontend adopts v2.
 
-The [synthetic v2 SSE fixture](fixtures/stream-v2.sse) illustrates event framing. It is an example, not a captured live response. Do not enable the v2 frontend before the Step 13 browser and HTTP contract gates pass.
+The [synthetic v2 SSE fixture](fixtures/stream-v2.sse) illustrates event framing. It is an example, not a captured live response. The v2 endpoint is implemented and enabled only when server-side v2 and routing configuration are enabled; frontend adoption remains gated on Phase F acceptance.

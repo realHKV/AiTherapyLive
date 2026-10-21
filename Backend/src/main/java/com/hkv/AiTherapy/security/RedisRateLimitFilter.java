@@ -1,5 +1,7 @@
 package com.hkv.AiTherapy.security;
 
+import tools.jackson.databind.ObjectMapper;
+import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
 import com.hkv.AiTherapy.service.payment.EntitlementService;
 import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
@@ -23,10 +25,13 @@ import java.util.UUID;
 public class RedisRateLimitFilter extends OncePerRequestFilter {
     private final RedisAdmissionService admission;
     private final EntitlementService entitlements;
+    private final ObjectMapper objectMapper;
 
-    public RedisRateLimitFilter(RedisAdmissionService admission, EntitlementService entitlements) {
+    public RedisRateLimitFilter(RedisAdmissionService admission, EntitlementService entitlements,
+                                ObjectMapper objectMapper) {
         this.admission = admission;
         this.entitlements = entitlements;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -44,11 +49,12 @@ public class RedisRateLimitFilter extends OncePerRequestFilter {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader("Retry-After", Long.toString(e.retryAfterSeconds()));
             response.setHeader("X-Usage-Reset-At", Instant.now().plusSeconds(e.retryAfterSeconds()).toString());
-            write(response, "RATE_LIMITED", "Too many AI requests. Try again later.");
+            write(response, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many AI requests. Try again later.");
             return;
         } catch (UsageException e) {
             response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
-            write(response, "ACCOUNTING_UNAVAILABLE", "Usage accounting is temporarily unavailable. Try again later.");
+            write(response, HttpStatus.SERVICE_UNAVAILABLE, "ACCOUNTING_UNAVAILABLE",
+                    "Usage accounting is temporarily unavailable. Try again later.");
             return;
         }
         chain.doFilter(request, response);
@@ -59,8 +65,11 @@ public class RedisRateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.matches(".*/chat/sessions$") || path.matches(".*/chat/sessions/[0-9a-fA-F-]+/(messages|stream|refresh-profile)$");
     }
-    private void write(HttpServletResponse response, String code, String message) throws IOException {
+    private void write(HttpServletResponse response, HttpStatus status, String code, String message) throws IOException {
+        response.setStatus(status.value());
         response.setContentType("application/json");
-        response.getWriter().write("{\"success\":false,\"data\":null,\"error\":{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}}");
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        response.setHeader("Cache-Control", "no-store");
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));
     }
 }

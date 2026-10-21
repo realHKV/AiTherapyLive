@@ -1,5 +1,6 @@
 package com.hkv.AiTherapy.security;
 
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.User;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
@@ -44,7 +45,8 @@ class TokenLoggingTest {
         when(tokens.generateAccessToken(user)).thenReturn(sensitiveToken);
         when(profiles.existsByUserId(user.getId())).thenReturn(true);
 
-        OAuth2SuccessHandler handler = new OAuth2SuccessHandler(tokens, users, profiles, mock(OAuthTicketService.class));
+        OAuth2SuccessHandler handler = new OAuth2SuccessHandler(tokens, users, profiles,
+                mock(OAuthTicketService.class), new ObjectMapper());
         ReflectionTestUtils.setField(handler, "corsAllowedOrigins", "http://localhost:5173");
         var response = new MockHttpServletResponse();
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), response,
@@ -89,7 +91,7 @@ class TokenLoggingTest {
                 .thenReturn(Optional.of(user));
         when(tickets.issue(user.getId())).thenReturn("synthetic-single-use-ticket");
 
-        OAuth2SuccessHandler handler = new OAuth2SuccessHandler(tokens, users, profiles, tickets);
+        OAuth2SuccessHandler handler = new OAuth2SuccessHandler(tokens, users, profiles, tickets, new ObjectMapper());
         ReflectionTestUtils.setField(handler, "corsAllowedOrigins", "http://localhost:5173");
         ReflectionTestUtils.setField(handler, "ticketHandoff", true);
         var response = new MockHttpServletResponse();

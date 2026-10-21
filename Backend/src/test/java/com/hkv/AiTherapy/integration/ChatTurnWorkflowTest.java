@@ -272,7 +272,19 @@ class ChatTurnWorkflowTest {
         UUID conversationId = conversations.findFirstByUserIdAndStatusOrderByStartedAtDesc(user.getId(), "active")
                 .orElseThrow().getId();
         assertEquals(1, messages.countByConversationId(conversationId));
-        verify(gateway, times(1)).generate(any(), any());
+
+        HttpRequest messageRequest = HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                        + "/api/v1/chat/sessions/" + conversationId + "/messages"))
+                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer synthetic-legacy-token")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"content\":\"synthetic legacy message\"}")).build();
+        HttpResponse<String> messageResponse = HttpClient.newHttpClient().send(messageRequest,
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, messageResponse.statusCode(), messageResponse.body());
+        assertTrue(messageResponse.body().contains("\"success\":true"));
+        assertTrue(messageResponse.body().contains("\"data\":"));
+        assertEquals(3, messages.countByConversationId(conversationId));
+        verify(gateway, times(2)).generate(any(), any());
     }
 
     @Test

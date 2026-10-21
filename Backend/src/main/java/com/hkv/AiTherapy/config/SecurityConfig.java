@@ -1,5 +1,8 @@
 package com.hkv.AiTherapy.config;
 
+import tools.jackson.databind.ObjectMapper;
+import com.hkv.AiTherapy.dto.response.ApiResponse;
+import com.hkv.AiTherapy.exception.ApiExceptionHandler;
 import com.hkv.AiTherapy.security.JwtAuthenticationFilter;
 import com.hkv.AiTherapy.security.OAuth2SuccessHandler;
 import com.hkv.AiTherapy.security.RedisRateLimitFilter;
@@ -15,6 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.http.MediaType;
 
 @Configuration
 @EnableWebSecurity
@@ -25,15 +29,18 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final RedisRateLimitFilter redisRateLimitFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final ObjectMapper objectMapper;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
             OAuth2SuccessHandler oAuth2SuccessHandler,
             RedisRateLimitFilter redisRateLimitFilter,
-            CorsConfigurationSource corsConfigurationSource) {
+            CorsConfigurationSource corsConfigurationSource,
+            ObjectMapper objectMapper) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
         this.redisRateLimitFilter = redisRateLimitFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -58,11 +65,25 @@ public class SecurityConfig {
                         .successHandler(oAuth2SuccessHandler))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
-                            response.sendError(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-                        }))
+                            writeError(response, org.springframework.http.HttpStatus.UNAUTHORIZED,
+                                    "AUTH_REQUIRED", "Authentication is required.");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                writeError(response, org.springframework.http.HttpStatus.FORBIDDEN,
+                                        "FORBIDDEN", "You are not allowed to perform this action.")))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(redisRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private void writeError(jakarta.servlet.http.HttpServletResponse response,
+                            org.springframework.http.HttpStatus status, String code, String message)
+            throws java.io.IOException {
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        response.setHeader("Cache-Control", "no-store");
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));
     }
 }
