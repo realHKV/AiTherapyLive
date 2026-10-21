@@ -46,8 +46,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 05 | HTTP and streaming contract specification | Complete | `ea822ab`; [Step 05 handoff](handoffs/STEP-05.md); current routes and future opt-in operations labeled in `docs/api/` |
 | 06 | Schema, profiles, and memory consistency | Complete | `55ce2db`; [Step 06 handoff](handoffs/STEP-06.md); PostgreSQL/Redis CI passed 53 tests |
 | 07 | Bedrock gateway contract and model routing | Complete | `e5333c1`; [Step 07 handoff](handoffs/STEP-07.md); PostgreSQL/Redis CI passed 58 tests |
-| 08 | Durable usage accounting and budget enforcement | Pending | — |
-| 09 | Bedrock adapter and model evaluation | Pending | — |
+| 08 | Durable usage accounting and budget enforcement | Complete | `b9e41d5`; [Step 08 handoff](handoffs/STEP-08.md); durable reservations and settlement implemented |
+| 09 | Bedrock adapter and model evaluation | In progress | adapter, SDK fixtures, and synthetic evaluation report implemented; live AWS evaluation awaits account/region inputs |
 | 10 | Transaction-safe chat and streaming lifecycle | Pending | — |
 | 11 | Durable summaries and extraction jobs | Pending | — |
 | 12 | Bedrock-only configuration and operational readiness | Pending | — |
@@ -143,6 +143,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 **Exit gate:** concurrent requests cannot overspend a reservation budget or bypass one-generation rules; duplicate request IDs do not double-charge; restarts/Redis eviction do not erase paid usage; unavailable accounting rejects new billable work clearly. Test with a fake gateway and a controllable clock. Monetary caps remain deployment inputs until real model costs are measured.
 
 ### Step 09 — Implement Bedrock and evaluate candidates
+
+**Progress:** the opt-in AWS SDK v2 Bedrock Converse/ConverseStream gateway, bounded async client, cancellation, error mapping, and synthetic evaluation fixture/report template are implemented. SDK fixture tests cover the provider boundary. The live candidate comparison, model access, selected account/region/profile, price assumptions, and smoke run remain pending AWS account inputs; no invocation has been made. Step 09 stays in progress until those results are recorded.
 
 **Read:** gateway/routing contracts, AWS SDK BOM choices, FUTURE_ARCHITECTURE model candidates, and selected models' current official API/region/pricing documentation.
 

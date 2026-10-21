@@ -89,6 +89,12 @@ encryption:
 
 # ─── AI Provider ─────────────────────────────────────────────────────────────
 ai:
+  bedrock:
+    enabled: ${AI_BEDROCK_ENABLED:false}
+    region: ${BEDROCK_REGION:}
+    connect-timeout: ${BEDROCK_CONNECT_TIMEOUT:2s}
+    api-call-timeout: ${BEDROCK_API_CALL_TIMEOUT:45s}
+    api-call-attempt-timeout: ${BEDROCK_API_CALL_ATTEMPT_TIMEOUT:40s}
   usage:
     policy-id: ${AI_USAGE_POLICY_ID:beta-v1}
     region: ${BEDROCK_REGION:unconfigured}
