@@ -1,6 +1,6 @@
 # AWS migration plan
 
-Status: **proposal, not implemented**. Revised 2026-10-19 for the corrected Docker Hub → ECS on Fargate direction. Read the [current backend reference](BACKEND_REFERENCE.md) and [future architecture](FUTURE_ARCHITECTURE.md) first. No AWS resources were provisioned and no live database was inspected during this review.
+Status: **future production proposal, not the selected demo deployment**. Revised 2026-10-21: the user chose a warm, low-cost demonstration in Mumbai, Netlify frontend, and no purchased domain or separate load balancer. Step 15 now prepares [App Runner demo infrastructure and release workflow](handoffs/STEP-15.md), keeping the ECS/Fargate/RDS/ElastiCache design below for a later production decision. No AWS resources have been provisioned or live databases inspected.
 
 ## 1. Recommended approach
 

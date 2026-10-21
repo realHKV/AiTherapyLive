@@ -7,17 +7,36 @@ on:
       - 'Backend/**'
       - '.github/workflows/backend-tests.yml'
       - '.github/workflows/backend-release.yml'
+      - '.github/workflows/backend-demo-deploy.yml'
   pull_request:
     paths:
       - 'Backend/**'
       - '.github/workflows/backend-tests.yml'
       - '.github/workflows/backend-release.yml'
+      - '.github/workflows/backend-demo-deploy.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.2
+      - name: Validate demo infrastructure without AWS credentials
+        working-directory: Backend/infra/demo
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: Check deployment script syntax
+        run: bash -n Backend/deploy/demo-release.sh Backend/deploy/demo-update.sh
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20

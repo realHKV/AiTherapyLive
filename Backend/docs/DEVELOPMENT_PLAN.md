@@ -53,7 +53,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 12 | Bedrock-only configuration and operational readiness | Complete | `93dd717`–`6900723`; [Step 12 handoff](handoffs/STEP-12.md); final PostgreSQL/Redis CI passed 98 tests |
 | 13 | Backend regression and contract freeze | Complete | `28ee148`–`db1c9c7`; [Step 13 handoff](handoffs/STEP-13.md); PostgreSQL/Redis CI run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817) passed all 104 tests |
 | 14 | Docker image and CI publishing workflow | Complete | `88fe40d`–`c4972e6`; [Step 14 handoff](handoffs/STEP-14.md); [CI run 39588906440](https://github.com/realHKV/AiTherapyLive/actions/runs/39588906440) passed all 104 tests, image build, migration/server smoke and scans; [release run 39589373190](https://github.com/realHKV/AiTherapyLive/actions/runs/39589373190) published and scanned the [recorded digest](releases/STEP-14-image.json) |
-| 15 | ECS Fargate infrastructure and release workflow | Pending | — |
+| 15 | Cost-capped AWS demo infrastructure and release workflow | Prepared; AWS setup pending | [Step 15 handoff](handoffs/STEP-15.md); Terraform validates; no AWS resources created |
 | 16 | Staging deployment and restore/rollback rehearsal | Pending | — |
 | 17 | Backend handoff package for frontend | Pending | — |
 | 18 | Frontend API client and authentication integration | Pending | — |
@@ -204,13 +204,13 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 **Exit gate:** local/CI test and image build pass; the image starts with external config and supports shutdown. Migration-only execution exits without starting the web server. Publishing is performed only with implementation-session authorization; otherwise the reviewed workflow remains ready and the publication gate is pending. Record the actual digest only after publication.
 
-### Step 15 — Prepare ECS Fargate infrastructure and deployment
+### Step 15 — Prepare low-cost AWS demo infrastructure and deployment
 
-**Read:** AWS_MIGRATION and recorded region/network/budget/registry decisions.
+**Decision:** the user selected Mumbai, Netlify for the frontend, no purchased domain or separate load balancer, and a warm, responsive demonstration backend with a $100 AWS credit. This supersedes the earlier ECS/ALB/RDS/ElastiCache/NAT proposal for the demo. Use App Runner's AWS HTTPS URL with one provisioned instance, an immutable ECR copy of the tested private Docker Hub image, and a separate demo PostgreSQL/Redis pair reachable over TLS. Keep the larger ECS design as a future production option only. See [Step 15 handoff](handoffs/STEP-15.md).
 
-**Implement:** reviewable infrastructure-as-code for ECS Fargate, ALB, private data services, secret injection, separate task/execution/deployment roles, GitHub OIDC, logs/alarms, and service scaling. Implement one-off migration tasks, deploy-by-digest, service-stability checks, smoke tests, and rollback. Clarify CI versus infrastructure ownership of task revisions. Preserve application encryption/signing keys through secret references.
+**Implemented:** reviewable Terraform for ECR, App Runner, secret references, separate image-access/application/deployment roles, GitHub OIDC, one warm instance with a small scaling cap, an account cost budget, and a 5xx alarm. A protected manual GitHub workflow verifies the source release, mirrors by digest, runs the migration-only image, deploys the ECR digest, checks readiness, and restores the previous image/configuration on failure. Terraform owns service settings; the workflow owns image updates. No frontend S3, ALB, NAT, RDS, ElastiCache, EC2, or Kubernetes resources are included in this demo stack.
 
-**Exit gate:** syntax/plan validation passes and the generated changes are reviewable; no plaintext secrets or EC2-server/Kubernetes management is introduced. Task roles, security groups, outbound access, total DB pool capacity, and resource costs are documented. Applying infrastructure follows session authorization and requires concrete account/region/budget inputs.
+**Exit gate:** Terraform format/validation and workflow checks pass; the generated changes are reviewable and contain no plaintext secrets. AWS apply waits for account access, a separate TLS-enabled demo PostgreSQL/Redis pair, exact Netlify origin, approved Bedrock models, secret references, and a billing alert email. This preparation does not count as a deployed staging service or Step 16 acceptance.
 
 ### Step 16 — Validate staging and rehearse recovery
 

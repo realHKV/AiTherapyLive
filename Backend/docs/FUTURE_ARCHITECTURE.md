@@ -6,9 +6,9 @@ Status: planning only; researched 2026-10-19. Nothing here changes the running a
 
 | Area | Direction | Status / reasoning |
 | --- | --- | --- |
-| Delivery | GitHub Actions → Docker Hub → ECS Fargate by digest | User-requested direction; detailed in [AWS migration plan](AWS_MIGRATION.md) |
-| Production registry | Optional ECR mirror of the tested Docker Hub artifact | Recommendation to reduce runtime dependency on external registry pulls; not mandatory |
-| Compute | ECS on Fargate; one backend service initially | Corrected user preference: AWS manages servers; task sizing, budget, and region still needed |
+| Delivery | Demo: GitHub Actions → Docker Hub → ECR → App Runner by digest; future production: ECS Fargate | Demo choice and setup in [Step 15 handoff](handoffs/STEP-15.md); larger target in [AWS migration plan](AWS_MIGRATION.md) |
+| Production registry | ECR copy of the tested Docker Hub artifact for the demo | App Runner requires ECR; record its own immutable digest after copying |
+| Compute | Demo: App Runner, one warm instance; future production: ECS Fargate | Mumbai demo avoids separately provisioned ALB, NAT, and data services; AWS manages the servers |
 | FREE conversations | Bedrock managed inference; evaluate Nova Lite | User-approved Bedrock-only direction; application subsidizes a capped allowance |
 | PRO conversations | Bedrock managed inference; evaluate Nova 2 Lite against Claude Haiku 5.5 | Model selection follows conversation evaluation and cost measurement |
 | Active memory | Encrypted PostgreSQL tables; four context layers and user-controlled lifecycle | Confirmed storage choice; [MEMORY_DESIGN](MEMORY_DESIGN.md) defines behavior |
