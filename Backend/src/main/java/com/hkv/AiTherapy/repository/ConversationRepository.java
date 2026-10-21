@@ -4,9 +4,11 @@ import com.hkv.AiTherapy.domain.Conversation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -24,6 +26,10 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
 
     /** Query to find a hanging active session */
     Optional<Conversation> findFirstByUserIdAndStatusOrderByStartedAtDesc(UUID userId, String status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Conversation c WHERE c.id = :id")
+    Optional<Conversation> findByIdForUpdate(@Param("id") UUID id);
 
     /**
      * Finds the most recently completed session for a user.

@@ -4,6 +4,7 @@ import com.hkv.AiTherapy.domain.AiAttempt;
 import com.hkv.AiTherapy.domain.AiRequest;
 import com.hkv.AiTherapy.repository.AiAttemptRepository;
 import com.hkv.AiTherapy.repository.AiRequestRepository;
+import com.hkv.AiTherapy.repository.ChatTurnRepository;
 import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -27,12 +28,14 @@ public class UsageAccountingService {
     private final JdbcTemplate jdbc;
     private final AiRequestRepository requests;
     private final AiAttemptRepository attempts;
+    private final ChatTurnRepository chatTurns;
     private final UsagePolicy policy;
     private final Clock clock;
 
     public UsageAccountingService(JdbcTemplate jdbc, AiRequestRepository requests, AiAttemptRepository attempts,
-                                  UsagePolicy policy, Clock clock) {
-        this.jdbc = jdbc; this.requests = requests; this.attempts = attempts; this.policy = policy; this.clock = clock;
+                                  ChatTurnRepository chatTurns, UsagePolicy policy, Clock clock) {
+        this.jdbc = jdbc; this.requests = requests; this.attempts = attempts; this.chatTurns = chatTurns;
+        this.policy = policy; this.clock = clock;
     }
 
     @Transactional
@@ -119,6 +122,11 @@ public class UsageAccountingService {
                 releaseBuckets(locked, LocalDate.ofInstant(locked.getCreatedAt(), ZoneOffset.UTC));
                 locked.setStatus("EXPIRED"); locked.setFailureCode("LEASE_EXPIRED"); locked.setLeaseExpiresAt(null); locked.setCompletedAt(clock.instant());
             }
+            chatTurns.findById(locked.getId()).filter(turn -> "IN_PROGRESS".equals(turn.getStatus())).ifPresent(turn -> {
+                turn.setStatus("FAILED");
+                turn.setFailureCode("LEASE_EXPIRED");
+                chatTurns.save(turn);
+            });
             reconciled++;
         }
         return reconciled;

@@ -23,6 +23,7 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
         SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
            AND m.status = 'active'
+           AND m.sourceRevision = m.user.contextRevision
            AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
            AND (sc.id IS NULL OR sc.contextEligible = true)
          ORDER BY m.importance DESC
@@ -30,6 +31,19 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
         """)
     List<LongTermMemory> findTopByImportance(@Param("userId") UUID userId,
                                              @Param("limit") int limit);
+
+    /** Small confirmed-only candidate set; relevance ranking happens after decryption in application memory. */
+    @Query("""
+        SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
+         WHERE m.user.id = :userId AND m.status = 'active'
+           AND m.sourceRevision = m.user.contextRevision
+           AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
+           AND (sc.id IS NULL OR sc.contextEligible = true)
+         ORDER BY m.followUpAt ASC NULLS LAST, m.importance DESC, m.createdAt DESC
+         LIMIT :limit
+        """)
+    List<LongTermMemory> findEligibleContextCandidates(@Param("userId") UUID userId,
+                                                        @Param("limit") int limit);
 
     /**
      * Memories with a follow-up date due today or overdue.
@@ -39,6 +53,7 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
         SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
            AND m.status = 'active'
+           AND m.sourceRevision = m.user.contextRevision
            AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
            AND (sc.id IS NULL OR sc.contextEligible = true)
            AND m.followUpAt IS NOT NULL

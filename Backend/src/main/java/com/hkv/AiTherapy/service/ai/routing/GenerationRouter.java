@@ -34,7 +34,20 @@ public class GenerationRouter {
         return gateway.generate(resolve(command), cancellation);
     }
 
+    /** Executes an already resolved server-side policy decision, shared with durable accounting workflows. */
+    public GenerationResult generate(ResolvedGeneration resolved, CancellationToken cancellation) {
+        if (resolved == null || cancellation == null) throw new IllegalArgumentException("Resolved request and cancellation token required");
+        return gateway.generate(resolved, cancellation);
+    }
+
     public void stream(GenerationCommand command, CancellationToken cancellation, Consumer<GenerationEvent> events) {
         gateway.stream(resolve(command), cancellation, events);
+    }
+
+    /** Streams an already resolved server-side policy decision, shared with durable accounting workflows. */
+    public void stream(ResolvedGeneration resolved, CancellationToken cancellation, Consumer<GenerationEvent> events) {
+        if (resolved == null || cancellation == null || events == null)
+            throw new IllegalArgumentException("Resolved request, cancellation token, and event consumer required");
+        gateway.stream(resolved, cancellation, events);
     }
 }

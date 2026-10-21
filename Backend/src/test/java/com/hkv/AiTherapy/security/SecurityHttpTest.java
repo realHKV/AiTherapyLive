@@ -4,6 +4,7 @@ import com.hkv.AiTherapy.config.SecurityConfig;
 import com.hkv.AiTherapy.config.CorsConfig;
 import com.hkv.AiTherapy.controller.AuthController;
 import com.hkv.AiTherapy.controller.ChatController;
+import com.hkv.AiTherapy.controller.ChatRequestController;
 import com.hkv.AiTherapy.controller.DevController;
 import com.hkv.AiTherapy.controller.PaymentController;
 import com.hkv.AiTherapy.controller.ProfileController;
@@ -16,6 +17,8 @@ import com.hkv.AiTherapy.service.auth.AuthService;
 import com.hkv.AiTherapy.service.auth.TokenService;
 import com.hkv.AiTherapy.service.auth.OAuthTicketService;
 import com.hkv.AiTherapy.service.chat.ChatService;
+import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
+import com.hkv.AiTherapy.service.chat.ChatStreamHandle;
 import com.hkv.AiTherapy.service.job.SummarizationJob;
 import com.hkv.AiTherapy.service.memory.MemoryService;
 import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
@@ -51,11 +54,12 @@ import javax.crypto.spec.SecretKeySpec;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = {AuthController.class, ChatController.class, DevController.class,
-        PaymentController.class, ProfileController.class, UsageController.class})
+        PaymentController.class, ProfileController.class, UsageController.class, ChatRequestController.class})
 @Import({SecurityConfig.class, CorsConfig.class, JwtAuthenticationFilter.class, RedisRateLimitFilter.class})
 @TestPropertySource(properties = {"app.dev-mode=false", "razorpay.webhook-secret=synthetic-webhook-secret"})
 class SecurityHttpTest {
@@ -67,6 +71,7 @@ class SecurityHttpTest {
     @MockitoBean private TokenService tokenService;
     @MockitoBean private AccountService accountService;
     @MockitoBean private ChatService chatService;
+    @MockitoBean private ChatTurnWorkflow chatTurnWorkflow;
     @MockitoBean private SummarizationJob summarizationJob;
     @MockitoBean private ConversationRepository conversationRepository;
     @MockitoBean private ProfileService profileService;
@@ -97,6 +102,44 @@ class SecurityHttpTest {
         mvc.perform(delete("/auth/account"))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void v2StreamIsOptInAuthenticatedAndReturnsReconciliationHeaders() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        String idempotencyKey = UUID.randomUUID().toString();
+        String requestId = UUID.randomUUID().toString();
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(10000L);
+        when(chatTurnWorkflow.stream(eq(USER_ID), eq(sessionId), eq(idempotencyKey), eq("Synthetic stream")))
+                .thenReturn(new ChatStreamHandle(requestId, emitter));
+
+        var result = mvc.perform(post("/chat/sessions/" + sessionId + "/stream")
+                        .header("Authorization", "Bearer synthetic-valid-token")
+                        .header("X-Chat-Stream-Version", "2")
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"Synthetic stream\"}"))
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        assertEquals(requestId, result.getResponse().getHeader("X-Request-Id"));
+        assertTrue(result.getResponse().getContentType().startsWith(MediaType.TEXT_EVENT_STREAM_VALUE));
+        assertEquals("no-store", result.getResponse().getHeader("Cache-Control"));
+        verify(chatTurnWorkflow).stream(USER_ID, sessionId, idempotencyKey, "Synthetic stream");
+        emitter.complete();
+    }
+
+    @Test
+    void corsAllowsV2IdempotencyHeadersAndExposesStreamRequestId() throws Exception {
+        mvc.perform(options("/chat/sessions/" + UUID.randomUUID() + "/stream")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key,x-chat-stream-version"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("X-Chat-Stream-Version")))
+                .andExpect(header().string("Access-Control-Expose-Headers", org.hamcrest.Matchers.containsString("X-Request-Id")));
     }
 
     @Test

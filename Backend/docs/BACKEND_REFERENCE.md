@@ -66,10 +66,15 @@ There is no durable queue, vector database, file-upload storage, AWS SDK integra
 
 `ChatController → ChatService → PromptBuilder / AIGateway / repositories`.
 
-1. Starting a session finds the latest active session, reads its last six messages, and ends it. A new conversation is created and the AI generates a greeting using the previous transcript when available.
-2. Sending a normal message checks ownership and active status, stores the user message, retrieves six recent messages in chronological order, prepends a system prompt, calls the provider, and saves the reply. This method holds a database transaction during the network request.
-3. Streaming checks ownership and rejects `completed` conversations, saves the user message, then returns a 60-second `SseEmitter`. Text chunks are unnamed SSE data events. Completion persists the assistant message and updates the count. There is no explicit terminal event, event ID, reconnect cursor, or cancellation wiring to the provider.
-4. Ending a session marks it completed, increments profile session count if a profile exists, and publishes `SessionEndedEvent`. Repeating this operation can increment the count again.
+Legacy requests without a version header keep the existing ChatService/AIGateway behavior for the current frontend. Step 10 adds an isolated v2 path, activated per request with `X-Chat-Request-Version: 2` or `X-Chat-Stream-Version: 2`, and only when both `AI_CHAT_V2_ENABLED` and `AI_ROUTING_ENABLED` are true.
+
+V2 session start, synchronous message submission, and streaming use durable user-scoped idempotency. A repeated active-session start reuses the session and does not generate another greeting. Chat turns are stored in `chat_turns`, linked to `ai_requests`, and retrievable through `GET /chat/requests/{requestId}`. User ownership, active state, and context eligibility are checked under row locks; a partial unique index permits only one active conversation per account. Session end is idempotent and sends a cancellation event after commit.
+
+V2 reserves usage and persists the user turn in a short PostgreSQL transaction, then calls the resolved gateway after commit using a bounded executor. The stream sends named JSON `start`, `delta`, and terminal `complete`/`error` events. Assistant text is persisted only on success, and usage settlement commits with that message. Client disconnect, first-token/total deadline, and session end cancel the upstream token where possible. A late result cannot complete a terminal turn. If durable settlement fails, the stream closes without claiming success and the lease reconciler repairs the request and chat-turn status.
+
+V2 assembles no more than 20 recent messages and ranks a bounded set of 50 eligible memories using topic overlap, follow-up due date, recency, and importance. It excludes pending, expired, stale-revision, and ineligible-source memories and includes only the latest context-valid session summary. Input reservation estimates use four characters per token until provider usage is available. These limits and the lightweight topic ranker are operational safeguards, not semantic-search guarantees.
+
+The legacy session start still creates a new conversation and calls the old provider path; legacy normal-message and stream calls retain their prior transaction, error-marker, and cancellation limitations. Keep v2 disabled until Phase F/Step 13 validates the frontend and deployment settings.
 
 [PromptBuilder](../src/main/java/com/hkv/AiTherapy/service/ai/PromptBuilder.java) uses the profile name, age, persona, style, topics, top five traits, and five most important unresolved memories. Missing profiles get a short fallback prompt. Due-follow-up and last-completed-session repository methods exist but are not used by this builder. There is no enforced prompt token budget.
 
@@ -107,10 +112,11 @@ Most successful responses use `{success, data, error, timestamp}` from [ApiRespo
 | POST `/auth/logout` | `refreshToken`, optional bearer header | 200, message; public matcher |
 | POST `/auth/oauth/exchange` | `ticket` | 200, AuthResponse; public; requires opt-in ticket callback |
 | DELETE `/auth/account` | No body | 200, string; JWT required |
-| POST `/chat/sessions` | No body | 201, ConversationResponse with greeting; JWT |
-| POST `/chat/sessions/{id}/messages` | Nonblank `content` | 200, ChatMessageResponse; JWT |
-| POST `/chat/sessions/{id}/stream` | Nonblank `content` | `text/event-stream`; JWT |
-| PUT `/chat/sessions/{id}/end` | No body | 200, null data; JWT |
+| POST `/chat/sessions` | No body; optional v2 request-version and idempotency headers | Legacy: 201; v2: 200 and active-session reuse; JWT |
+| POST `/chat/sessions/{id}/messages` | Nonblank `content`; optional v2 request-version and idempotency headers | Legacy or idempotent v2 `ChatMessageResponse`; JWT |
+| POST `/chat/sessions/{id}/stream` | Nonblank `content`; optional v2 stream-version and idempotency headers | Legacy raw SSE or v2 named SSE with request ID; JWT |
+| GET `/chat/requests/{requestId}` | No body | Owner-scoped v2 generation state and stored answer; JWT |
+| PUT `/chat/sessions/{id}/end` | No body | 200, null data; idempotent state transition; JWT |
 | POST `/chat/sessions/{id}/refresh-profile` | No body | 200, null data after extraction; JWT |
 | GET `/profile/me` | No body | 200, ProfileResponse; JWT; attempts lazy profile creation |
 | PUT `/profile/me` | Optional `preferredName`, `ageRange`, `communicationStyle`, `aiPersona`, `topicsOfConcern` | 200, ProfileResponse; JWT |
@@ -215,14 +221,14 @@ These are source-level findings, not claims from a penetration test. Priorities 
 | P0 | [SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) does not bind manual verification to a server-owned user/order or enforce INR | Verify ownership, currency, amount, and replay/concurrency behavior before accepting payment-derived entitlement |
 | P1 (Step 01 addressed) | [SecurityConfig](../src/main/java/com/hkv/AiTherapy/config/SecurityConfig.java) previously permitted all `/auth/**`, including account deletion | Only the specified public auth endpoints remain public; deletion requires a JWT |
 | P1 | Summarization races commit, loses events on restart, and can mark failed extraction complete | After-commit dispatch plus durable retry/idempotency and explicit failure state |
-| P1 | Repeated session end increments counts; start/message operations lack concurrency control | Define idempotent transitions and test concurrent clients |
-| P1 | Stream persistence/cancellation is incomplete; remote calls can hold DB transactions | Bound provider work and transaction scope; define partial/failed message semantics |
+| P1 (partly addressed in v2) | Legacy session start/message operations retain weaker concurrency semantics | Preserve legacy contract during rollout; migrate frontend to tested v2 before disabling the legacy route |
+| P1 (partly addressed in v2) | Legacy stream persistence/cancellation is incomplete; remote calls can hold DB transactions | Keep legacy isolated; complete the v2 Postgres/Redis and HTTP stream gates before enabling it |
 | P1 | No health checks/metrics; unbounded SimpleAsyncTaskExecutor | Add readiness/liveness, metrics, and bounded execution before scaling; security log level is now WARN |
 | P1 | OAuth state across replicas and JWT continuity have no deployment tests | Test redirects, token refresh, logout, restart, and multi-instance behavior |
 | P2 | Profile GET creates data inside a read-only transaction; V2 fields unused; memory title schema mismatch | Add real database coverage and reconcile intended schema/API behavior |
 | P2 | Chat size, memory pagination, and profile length limits incomplete; errors inconsistent | Validate boundaries and implement a tested error contract |
 | P2 | Concurrent refresh/payment processing and Redis TTL assignment are not atomic end-to-end | Add locking/atomic operations and duplicate-request tests |
 
-Current tests include [SecurityHttpTest](../src/test/java/com/hkv/AiTherapy/security/SecurityHttpTest.java), token-log capture, ownership unit tests, encryption/JSON characterization, and the original chat/summarization tests. PostgreSQL/Redis Testcontainers checks are present but skip when Docker is absent; they have not yet been executed on this host. Real transactions, SSE, and payment ownership still need integration coverage in later steps.
+Current tests include [SecurityHttpTest](../src/test/java/com/hkv/AiTherapy/security/SecurityHttpTest.java), chat-turn lifecycle Testcontainers checks, token-log capture, ownership unit tests, encryption/JSON characterization, and chat/summarization tests. PostgreSQL/Redis Testcontainers checks skip when Docker is absent; Step 10's new migration and chat workflow integration tests require the GitHub Actions run to execute them. A real browser rollout remains a later Phase F gate.
 
 The [keep-alive workflow](../../.github/workflows/keep-alive.yml) targets Render. This is evidence of deployment intent, not confirmation of the live host or its current configuration. Inventory the actual deployment before moving data.

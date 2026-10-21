@@ -1,6 +1,6 @@
 # Bedrock gateway and candidate evaluation
 
-Status: **adapter and synthetic fixture implemented; live candidate comparison pending an AWS account/region selection and model access**. No AWS invocation has been made by this change.
+Status: **adapter and synthetic fixture implemented; live candidate comparison pending model access and AWS setup**. The user-selected source region is Mumbai (`ap-south-1`). No AWS invocation has been made by this change.
 
 ## Adapter behavior
 
@@ -16,15 +16,15 @@ Status: **adapter and synthetic fixture implemented; live candidate comparison p
 
 | Candidate role | Exact model or inference profile ID | Source region | Processing regions | Access verified | Quality score | p50 latency | Input/output tokens | Price basis/date | Decision |
 |---|---|---|---|---|---|---|---|---|---|
-| FREE conversation | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| PRO conversation | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| SUMMARY / PROFILE_REFRESH | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| FREE conversation | Pending | `ap-south-1` (Mumbai) | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| PRO conversation | Pending | `ap-south-1` (Mumbai) | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| SUMMARY / PROFILE_REFRESH | Pending | `ap-south-1` (Mumbai) | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
 Candidate IDs in `FUTURE_ARCHITECTURE.md` are hypotheses. Resolve exact IDs and whether a direct model ID or inference-profile ID is appropriate from the current Bedrock model page and `GetInferenceProfile` response in the selected AWS account and region. Cross-region inference can process data in destination Regions; check its destination list and privacy requirements before choosing it.
 
 ## What is needed for a real smoke/evaluation run
 
-1. Your AWS account and preferred Bedrock source region. The account ID is not a secret; do not send passwords, access keys, or secret keys here.
+1. Bedrock model access enabled for your AWS account in Mumbai (`ap-south-1`). You do not need to share your account ID, passwords, access keys, or secret keys here.
 2. Model IDs you want to evaluate (or authorize us to use the current planning candidates after checking their availability in that region). Confirm whether cross-region inference is acceptable for the data.
 3. Bedrock model access enabled for the selected account, with any provider/model use-case form completed where AWS requires it.
 4. A short-lived local AWS SSO session for a human evaluation identity, or an ECS task role when staging exists. The role needs only `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` on the approved model/inference-profile resources. For cross-region profiles, IAM/SCP permissions must also allow the profile's destination resources.
@@ -34,4 +34,4 @@ Never place AWS credentials in `.env`, source code, GitHub, or a chat message. F
 
 ## Exit record
 
-The SDK fixture tests cover normal responses, text/usage mapping, stream deltas, partial stream failure, throttling, access denial, invalid model access, timeout, cancellation, and terminal-event uniqueness. The local backend suite passed 72 discovered tests (66 passed; 6 PostgreSQL/Redis integration tests skipped because Docker is unavailable here), and [GitHub Actions run 39566504411](https://github.com/realHKV/AiTherapyLive/actions/runs/39566504411) passed with those services. Live model identifiers, account/region access, latency, quality results, pricing assumptions, and a capped smoke run remain pending the AWS inputs above. Until those are recorded, no candidate is approved for production and Bedrock remains off.
+The SDK fixture tests cover normal responses, text/usage mapping, stream deltas, partial stream failure, throttling, access denial, invalid model access, timeout, cancellation, and terminal-event uniqueness. The local backend suite passed 72 discovered tests (66 passed; 6 PostgreSQL/Redis integration tests skipped because Docker is unavailable here), and [GitHub Actions run 39566504411](https://github.com/realHKV/AiTherapyLive/actions/runs/39566504411) passed with those services. The user selected Mumbai (`ap-south-1`) as the source region; model access, latency, quality results, pricing assumptions, and a capped smoke run remain pending. Until those are recorded, no candidate is approved for production and Bedrock remains off.

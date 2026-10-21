@@ -63,6 +63,9 @@ public class ChatService {
 
     @Transactional
     public ConversationResponse startSession(UUID userId) {
+        userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
         // 1. Check for an existing active session to use as context
         java.util.Optional<Conversation> activeSessionOpt = conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active");
         
@@ -276,12 +279,17 @@ public class ChatService {
 
     @Transactional
     public void endSession(UUID userId, UUID conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
+        userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
         if (!conversation.getUser().getId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
+
+        if (!"active".equals(conversation.getStatus())) return;
 
         conversation.setStatus("completed");
         conversation.setEndedAt(Instant.now());
@@ -296,6 +304,7 @@ public class ChatService {
 
         // Instantly trigger the background summarization job
         eventPublisher.publishEvent(new com.hkv.AiTherapy.service.job.SessionEndedEvent(conversationId));
+        eventPublisher.publishEvent(new ConversationEndedEvent(userId, conversationId));
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

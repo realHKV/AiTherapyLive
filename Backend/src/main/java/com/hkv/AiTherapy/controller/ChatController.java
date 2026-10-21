@@ -8,14 +8,17 @@ import com.hkv.AiTherapy.service.chat.ChatService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
+import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
 
 @RestController
 @RequestMapping("/chat/sessions")
@@ -23,15 +26,24 @@ public class ChatController {
 
     private final ChatService chatService;
     private final com.hkv.AiTherapy.repository.ConversationRepository conversationRepository;
+    private final ObjectProvider<ChatTurnWorkflow> chatWorkflow;
 
     public ChatController(ChatService chatService,
-                          com.hkv.AiTherapy.repository.ConversationRepository conversationRepository) {
+                          com.hkv.AiTherapy.repository.ConversationRepository conversationRepository,
+                          ObjectProvider<ChatTurnWorkflow> chatWorkflow) {
         this.chatService = chatService;
         this.conversationRepository = conversationRepository;
+        this.chatWorkflow = chatWorkflow;
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<ConversationResponse>> startSession(@AuthenticationPrincipal String userId) {
+    public ResponseEntity<ApiResponse<ConversationResponse>> startSession(@AuthenticationPrincipal String userId,
+                                                                          @RequestHeader(value = "X-Chat-Request-Version", required = false) String version,
+                                                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        if (version != null) {
+            requireV2(version, "X-Chat-Request-Version");
+            return ResponseEntity.ok(ApiResponse.success(workflow().startSession(UUID.fromString(userId), idempotencyKey)));
+        }
         ConversationResponse response = chatService.startSession(UUID.fromString(userId));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
@@ -39,7 +51,14 @@ public class ChatController {
     @PostMapping("/{sessionId}/messages")
     public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(@AuthenticationPrincipal String userId,
                                                                         @PathVariable UUID sessionId,
+                                                                        @RequestHeader(value = "X-Chat-Request-Version", required = false) String version,
+                                                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                                         @Valid @RequestBody ChatMessageRequest request) {
+        if (version != null) {
+            requireV2(version, "X-Chat-Request-Version");
+            ChatMessageResponse response = workflow().submit(UUID.fromString(userId), sessionId, idempotencyKey, request.getContent());
+            return ResponseEntity.ok(ApiResponse.success(response));
+        }
         ChatMessageResponse response = chatService.sendMessage(UUID.fromString(userId), sessionId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -67,17 +86,39 @@ public class ChatController {
     }
 
     @PostMapping(value = "/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMessage(
+    public ResponseEntity<SseEmitter> streamMessage(
             @PathVariable UUID id,
+            @RequestHeader(value = "X-Chat-Stream-Version", required = false) String version,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody @Valid ChatMessageRequest request,
             Authentication authentication) {
         UUID userId = UUID.fromString((String) authentication.getPrincipal());
+
+        if (version != null) {
+            requireV2(version, "X-Chat-Stream-Version");
+            var stream = workflow().stream(userId, id, idempotencyKey, request.getContent());
+            return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
+                    .cacheControl(CacheControl.noStore()).header("X-Request-Id", stream.requestId())
+                    .body(stream.emitter());
+        }
 
         // Capture SecurityContext before handing off to async thread
         // org.springframework.security.core.context.SecurityContext context =
         //         org.springframework.security.core.context.SecurityContextHolder.getContext();
 
         SseEmitter emitter = chatService.streamMessage(id, userId, request);
-        return emitter;
+        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
+                .cacheControl(CacheControl.noStore()).body(emitter);
+    }
+
+    private ChatTurnWorkflow workflow() {
+        ChatTurnWorkflow workflow = chatWorkflow.getIfAvailable();
+        if (workflow == null) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "Version 2 chat is not enabled on this server.");
+        return workflow;
+    }
+
+    private static void requireV2(String version, String header) {
+        if (!"2".equals(version)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, header + " must be 2.");
     }
 }

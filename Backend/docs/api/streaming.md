@@ -1,36 +1,44 @@
 # Chat streaming contract
 
-Base path: `/api/v1/chat/sessions/{sessionId}/stream`. The client uses `POST` with JSON `{"content":"..."}` and a bearer token. Native `EventSource` cannot issue this POST; use `fetch` and parse the SSE byte stream incrementally. UTF-8 characters and SSE lines can be split across network chunks.
+The base URL includes `/api/v1`. The v1 stream is `POST /chat/sessions/{sessionId}/stream` with JSON `{"content":"..."}` and a bearer token. Native `EventSource` cannot issue this POST; clients use `fetch` and parse SSE incrementally. UTF-8 characters and SSE lines may be split across network chunks.
 
-## Current behavior (implemented)
+## Legacy v1 stream
 
-- `200 text/event-stream` emits **unnamed** SSE `data:` events containing raw assistant text chunks. There is no JSON envelope, event ID, start event, or terminal completion event. HTTP error responses before streaming are not consistently formatted.
-- The backend saves the user message before the provider call. On provider completion it saves the concatenated assistant text and completes the emitter. The emitter has a 60-second timeout.
-- Some provider errors can appear as text, including `[ERROR: RATE_LIMIT_EXCEEDED]`. The current code may persist such text as assistant content. `completeWithError` can also close the stream without a terminal event. A disconnect does not reliably cancel upstream work. These are known defects for Step 10, not client guarantees.
-- The current frontend's fallback stream URL omits `/api/v1`; this helper is not a validated stream integration. Phase F will switch callers after the new protocol is accepted.
+Without `X-Chat-Stream-Version`, the server keeps the existing compatibility route: unnamed SSE `data:` events containing raw text chunks, no terminal event, and no reliable upstream cancellation. Provider errors may appear in the text stream. The current frontend's fallback URL omits `/api/v1`; Phase F will switch callers only after its acceptance tests pass.
 
-## Proposed opt-in protocol (pending Step 10)
+## Opt-in v2 lifecycle
 
-The existing mode remains the default for old clients. A new client sends `X-Chat-Stream-Version: 2` and `Idempotency-Key: <UUID>`; the server must reject an unsupported version before saving a message. One idempotency key identifies one logical turn for the authenticated user. Repeating it with a different body returns `409 IDEMPOTENCY_CONFLICT`; repeating it with the same body returns the existing state without generating or charging twice. A key is retained for at least 24 hours; Step 10 will specify the exact retention and cleanup policy.
+V2 requires `AI_CHAT_V2_ENABLED=true` and `AI_ROUTING_ENABLED=true`. It uses the provider-neutral router and durable usage ledger. Bedrock remains an independently configured choice; v2 does not enable AWS or select a model on its own.
 
-The server returns `Content-Type: text/event-stream; charset=UTF-8`, `Cache-Control: no-store`, and `X-Request-Id`. All events are UTF-8 JSON in one `data:` field, with an `event:` name. The server sends these in order:
+### Start or resume a session
 
-1. `start`: `{ "requestId": "UUID", "sessionId": "UUID", "userMessageId": "UUID" }` after an owned active session and a durable request record are established.
-2. Zero or more `delta`: `{ "requestId": "UUID", "text": "..." }`. Preserve order. Text may be any Unicode substring; consumers append parsed `text`, not transport bytes.
-3. Exactly one terminal event when the connection remains writable:
-   - `complete`: `{ "requestId": "UUID", "assistantMessageId": "UUID", "status": "completed", "usage": { "inputTokens": 12, "outputTokens": 34 } }`, sent only after successful assistant persistence and usage settlement.
-   - `error`: `{ "requestId": "UUID", "code": "PROVIDER_UNAVAILABLE", "message": "Response is temporarily unavailable.", "retryable": true, "partialPersisted": false, "usage": { "inputTokens": 12, "outputTokens": 0 } }`, sent after a failed/canceled generation is durably recorded and usage is settled or marked for reconciliation. Never send a provider diagnostic or user content in the message.
+`POST /chat/sessions` accepts `X-Chat-Request-Version: 2` and a UUID `Idempotency-Key`. A repeated key returns the same session. A reload with a new key also resumes an already active session, so it cannot bill for another greeting. Complete an active session before starting a new one. Concurrent starts are serialized per account and PostgreSQL enforces at most one active session.
 
-`usage` numbers are server-observed values; when the provider does not return usage, the server records an explicit unknown/estimated state rather than inventing exact counts. The final JSON shape for that state is pending Step 08. `start`, `delta`, and terminal events must carry the same request ID. The client treats EOF without a terminal event as **unknown**, then calls the proposed `GET /api/v1/chat/requests/{requestId}` to reconcile. It must not assume success or retry with a new key.
+### Submit a non-streamed turn
 
-SSE `id:` is deliberately omitted in v2. This protocol does not promise resumable byte replay or `Last-Event-ID` support. Reconnection uses the request status endpoint, and a new generation requires a new idempotency key. A `409` means the same key was used with different input; a `404` on the status endpoint conceals another user's request.
+`POST /chat/sessions/{sessionId}/messages` accepts `X-Chat-Request-Version: 2`, a UUID `Idempotency-Key`, and the existing JSON body. The assistant response uses the existing `ChatMessageResponse` envelope. Reusing a key with the same session and body returns the stored assistant message; a different body returns `409`. An in-progress duplicate returns `409` and does not start another provider call.
 
-## Persistence and cancellation rules for Step 10
+### Stream a turn
 
-- Validate bearer token, user ownership, active session, body length, idempotency key, and budget **before** starting a billable provider call. Define a bounded first-token deadline and total deadline in configuration.
-- Never hold a database transaction open while waiting for the provider. Persist the request and user turn once, then persist a completed or explicitly incomplete assistant turn and settle usage.
-- On provider error, timeout, client disconnect, or session end during generation, cancel upstream work when possible. Record `failed` or `canceled` state; do not store an error marker as an assistant answer. Charge only actual provider attempts under Step 08's accounting rules.
-- A client disconnect can make the terminal event impossible to deliver. The persisted request state is authoritative. A late provider callback must not turn a canceled request into a completed answer.
-- `429` before stream start is an HTTP error with `Retry-After` seconds and a UTC reset timestamp. After `start`, quota/provider limits use a terminal `error` event with a stable code. Provider unavailable maps to `503` before start or `PROVIDER_UNAVAILABLE` after start. Exact headers and error envelope are pending implementation and tests.
+`POST /chat/sessions/{sessionId}/stream` accepts `X-Chat-Stream-Version: 2`, `Idempotency-Key: <UUID>`, and the same JSON body. The response sets `Content-Type: text/event-stream`, `Cache-Control: no-store`, and `X-Request-Id`. Events are named SSE events with one JSON object in `data:`; all carry the same request ID:
 
-The [synthetic v2 event fixture](fixtures/stream-v2.sse) illustrates framing. It is a proposed example, **not** current endpoint output. Do not enable v2 in the frontend until Step 10 and Step 13 acceptance tests pass.
+1. `start`: `{ "requestId": "UUID", "sessionId": "UUID", "userMessageId": "UUID" }`, after the owned active session, user turn, durable usage reservation, and idempotency record are committed.
+2. Zero or more `delta`: `{ "requestId": "UUID", "text": "..." }`. Append the parsed text in order; deltas may split Unicode characters at the transport byte level.
+3. Exactly one terminal event while the connection remains writable:
+   - `complete`: `{ "requestId": "UUID", "assistantMessageId": "UUID", "status": "completed", "usage": { "inputTokens": 12, "outputTokens": 34 } }`, sent only after assistant persistence and usage settlement commit.
+   - `error`: `{ "requestId": "UUID", "code": "PROVIDER_UNAVAILABLE", "message": "The AI service is temporarily unavailable.", "retryable": true, "partialPersisted": false, "usage": { "inputTokens": null, "outputTokens": null } }`, sent after failure state and usage settlement commit. Provider diagnostics, prompt text, and generated partial text are never placed in the error event.
+
+If settlement storage is unavailable, the connection closes without a terminal event. Treat EOF without a terminal event as unknown and reconcile with `GET /chat/requests/{requestId}`. That endpoint is owner-scoped and returns the durable state, failure code, assistant message when completed, and observed or unknown usage. A repeated completed stream key sends `start` and `complete`; use the status endpoint to retrieve the stored assistant text. A repeated failed key sends the existing sanitized error. A repeated in-progress key returns `409` before opening a second stream.
+
+The request key is retained with the durable usage and turn audit records until account deletion; only a SHA-256 body fingerprint is stored. V2 has no `id:` field and does not promise byte replay or `Last-Event-ID`. A `404` status response conceals requests owned by another user. `429` before streaming includes `Retry-After`; after `start`, provider and generation failures use the terminal `error` event.
+
+## Persistence and cancellation
+
+- Request validation, ownership checks, active-session checks, context assembly, admission, durable reservation, and user-message persistence happen in a short database transaction. Model calls run only after it commits.
+- Messages are capped at 8,000 characters. Routed context includes at most 20 recent messages and a bounded 50-memory candidate set. Input usage is conservatively estimated at four characters per token for reservation; returned provider usage replaces that estimate when available.
+- Memory retrieval considers only active, confirmed, unexpired, current-revision memories with eligible source conversations. It ranks topic overlap, due follow-ups, recency, and importance in process memory. The latest valid session summary is included within the system prompt budget. Stored profile, summary, and memory content is explicitly treated as untrusted context.
+- V2 uses a 15-second first-token deadline, 60-second total generation deadline, and 90-second emitter deadline by default. All are configurable. The async worker and queue are bounded. Redis admission fails closed; the PostgreSQL reservation is authoritative and an expired lease reconciler updates both usage and chat-turn state.
+- Client disconnect, generation deadline, or session end cancels upstream work where the gateway supports it. Failed or canceled turns retain the user message and durable request status; incomplete assistant text is not persisted. A late callback cannot complete a terminal request. Repeating session end does not increment the session count again.
+- The default application keeps v2 disabled. Legacy clients retain the v1 behavior while the frontend and full HTTP stream contract are validated in Phase F/Step 13.
+
+The [synthetic v2 SSE fixture](fixtures/stream-v2.sse) illustrates event framing. It is an example, not a captured live response. Do not enable the v2 frontend before the Step 13 browser and HTTP contract gates pass.

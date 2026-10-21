@@ -20,6 +20,9 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     /** Used by ChatService to get the last N messages for AI context */
     List<Message> findByConversationId(UUID conversationId, Pageable pageable);
 
+    /** Stable newest-first page for context assembly, including deterministic timestamp ties. */
+    List<Message> findByConversationIdOrderByCreatedAtDescIdDesc(UUID conversationId, Pageable pageable);
+
     /**
      * Cursor-based pagination: messages after a given message ID.
      * Used by GET /chat/sessions/{id}/messages for efficient scrolling.

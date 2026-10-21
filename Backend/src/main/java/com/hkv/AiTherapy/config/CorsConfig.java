@@ -25,7 +25,9 @@ public class CorsConfig {
                 .toList();
         configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type",
+                "Idempotency-Key", "X-Chat-Request-Version", "X-Chat-Stream-Version"));
+        configuration.setExposedHeaders(List.of("X-Request-Id", "Retry-After"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

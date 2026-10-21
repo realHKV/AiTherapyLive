@@ -7,6 +7,7 @@ import com.hkv.AiTherapy.domain.User;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
+import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import com.hkv.AiTherapy.service.job.SessionEndedEvent;
@@ -40,6 +41,8 @@ class ChatServiceTest {
     private MessageRepository messageRepository;
     @Mock
     private TherapyProfileRepository therapyProfileRepository;
+    @Mock
+    private UserRepository userRepository;
     @Mock
     private AIGateway aiGateway;
     @Mock
@@ -79,7 +82,8 @@ class ChatServiceTest {
     @Test
     void testEndSession_FiresEventAndUpdatesProfile() {
         // Arrange
-        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
         when(therapyProfileRepository.findByUserId(userId)).thenReturn(Optional.of(testProfile));
 
         // Act
@@ -93,11 +97,23 @@ class ChatServiceTest {
         verify(conversationRepository).save(testConversation);
         verify(therapyProfileRepository).save(testProfile);
 
-        ArgumentCaptor<SessionEndedEvent> eventCaptor = ArgumentCaptor.forClass(SessionEndedEvent.class);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-        
-        SessionEndedEvent firedEvent = eventCaptor.getValue();
+        ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, times(2)).publishEvent(eventCaptor.capture());
+        SessionEndedEvent firedEvent = eventCaptor.getAllValues().stream()
+                .filter(SessionEndedEvent.class::isInstance).map(SessionEndedEvent.class::cast).findFirst().orElseThrow();
         assertEquals(conversationId, firedEvent.conversationId());
+    }
+
+    @Test
+    void repeatedEndDoesNotIncrementCountsOrRepublishEvent() {
+        testConversation.setStatus("completed");
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
+
+        chatService.endSession(userId, conversationId);
+
+        verifyNoInteractions(therapyProfileRepository, eventPublisher);
+        verify(conversationRepository, never()).save(any());
     }
 
     @Test
