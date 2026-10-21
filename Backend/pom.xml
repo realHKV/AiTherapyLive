@@ -19,6 +19,8 @@
 		<java.version>21</java.version>
 		<jjwt.version>0.13.0</jjwt.version>
 		<aws.sdk.version>2.55.13</aws.sdk.version>
+		<!-- Spring Boot 4.1.1 manages 11.0.24; 11.0.27 includes October 2026 security fixes. -->
+		<tomcat.version>11.0.27</tomcat.version>
 	</properties>
 
 	<dependencyManagement>
