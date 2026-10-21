@@ -1,6 +1,6 @@
 # AWS migration plan
 
-Status: **future production proposal, not the selected demo deployment**. Revised 2026-10-21: the user chose a warm, low-cost demonstration in Mumbai, Netlify frontend, and no purchased domain or separate load balancer. Step 15 now prepares [App Runner demo infrastructure and release workflow](handoffs/STEP-15.md), keeping the ECS/Fargate/RDS/ElastiCache design below for a later production decision. No AWS resources have been provisioned or live databases inspected.
+Status: **future production proposal, not the selected personal-project deployment**. Revised 2026-10-21: the user chose a warm, low-cost backend in Mumbai, an existing Netlify frontend, Neon PostgreSQL/Upstash Redis, and no purchased domain or separate load balancer. Step 15 now prepares [App Runner infrastructure and release workflow](handoffs/STEP-15.md), keeping the ECS/Fargate/RDS/ElastiCache design below for a later production decision. No AWS resources have been provisioned or live database contents inspected.
 
 ## 1. Recommended approach
 

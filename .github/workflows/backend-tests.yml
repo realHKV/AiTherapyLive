@@ -34,6 +34,7 @@ jobs:
           terraform fmt -check
           terraform init -backend=false -input=false
           terraform validate
+          terraform test
       - name: Check deployment script syntax
         run: bash -n Backend/deploy/demo-release.sh Backend/deploy/demo-update.sh
 

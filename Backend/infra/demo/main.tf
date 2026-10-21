@@ -90,6 +90,15 @@ variable "budget_email" {
   description = "Email address for AWS monthly budget and App Runner alarm notifications."
 }
 
+variable "frontend_origin" {
+  type    = string
+  default = "https://trust-therapy-ai.netlify.app"
+  validation {
+    condition     = can(regex("^https://[a-z0-9.-]+\\.netlify\\.app$", var.frontend_origin))
+    error_message = "Use the exact HTTPS Netlify origin without a trailing slash."
+  }
+}
+
 variable "monthly_budget_usd" {
   type    = number
   default = 15
@@ -104,7 +113,7 @@ locals {
     "DATABASE_URL", "DATABASE_USER", "DATABASE_PASSWORD", "REDIS_HOST", "REDIS_PASSWORD",
     "JWT_PRIVATE_KEY", "JWT_PUBLIC_KEY", "ENCRYPTION_MASTER_KEY",
     "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET",
-    "RAZORPAY_WEBHOOK_SECRET", "CORS_ALLOWED_ORIGINS"
+    "RAZORPAY_WEBHOOK_SECRET"
   ])
   secrets_valid = alltrue([
     for key in local.required_secrets :
@@ -210,6 +219,7 @@ resource "aws_apprunner_service" "api" {
           BEDROCK_FREE_MODEL_ID           = var.bedrock_free_model_id
           BEDROCK_PRO_MODEL_ID            = var.bedrock_pro_model_id
           BEDROCK_SUMMARY_MODEL_ID        = var.bedrock_summary_model_id
+          CORS_ALLOWED_ORIGINS            = var.frontend_origin
           DEV_MODE                        = "false"
         }
         runtime_environment_secrets = var.secret_arns
