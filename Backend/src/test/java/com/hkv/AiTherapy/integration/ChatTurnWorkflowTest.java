@@ -269,7 +269,9 @@ class ChatTurnWorkflowTest {
 
         assertEquals(201, response.statusCode(), response.body());
         assertEquals(1, conversations.findAll().stream().filter(value -> value.getUser().getId().equals(user.getId())).count());
-        assertEquals(1, messages.findAll().stream().filter(value -> value.getConversation().getUser().getId().equals(user.getId())).count());
+        UUID conversationId = conversations.findFirstByUserIdAndStatusOrderByStartedAtDesc(user.getId(), "active")
+                .orElseThrow().getId();
+        assertEquals(1, messages.countByConversationId(conversationId));
         verify(gateway, times(1)).generate(any(), any());
     }
 
