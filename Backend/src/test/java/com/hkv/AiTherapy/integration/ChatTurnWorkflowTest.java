@@ -20,7 +20,10 @@ import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -35,6 +38,10 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -42,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
 class ChatTurnWorkflowTest {
@@ -74,6 +81,7 @@ class ChatTurnWorkflowTest {
 
     @MockitoBean JwtTokenProvider jwtTokenProvider;
     @MockitoBean GenerationGateway gateway;
+    @LocalServerPort int port;
     @Autowired ChatTurnWorkflow workflow;
     @Autowired ChatService chatService;
     @Autowired UserRepository users;
@@ -133,6 +141,41 @@ class ChatTurnWorkflowTest {
         assertTrue(terminal.await(2, TimeUnit.SECONDS));
         awaitStatus(user.getId(), "FAILED");
         assertEquals(1, messages.countByConversationId(conversation.getId()));
+    }
+
+    @Test
+    void realHttpStreamFramesNamedEventsAndPreservesUnicodeDeltas() throws Exception {
+        User user = createUser();
+        Conversation conversation = createConversation(user);
+        when(jwtTokenProvider.validateToken("synthetic-stream-token")).thenReturn(true);
+        when(jwtTokenProvider.getJti("synthetic-stream-token")).thenReturn("synthetic-stream-jti");
+        when(jwtTokenProvider.getAuthentication("synthetic-stream-token")).thenReturn(
+                new UsernamePasswordAuthenticationToken(user.getId().toString(), null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        String key = UUID.randomUUID().toString();
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                        + "/chat/sessions/" + conversation.getId() + "/stream"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Authorization", "Bearer synthetic-stream-token")
+                .header("X-Chat-Stream-Version", "2")
+                .header("Idempotency-Key", key)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"content\":\"Stream 🌱\"}"))
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"));
+        assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(null));
+        assertTrue(response.headers().firstValue("X-Request-Id").isPresent());
+        assertTrue(response.body().contains("event:start\n"), response.body());
+        assertTrue(response.body().contains("event:delta\n"), response.body());
+        assertTrue(response.body().contains("Synthetic "), response.body());
+        assertTrue(response.body().contains("answer 🙂"), response.body());
+        assertTrue(response.body().contains("event:complete\n"), response.body());
+        assertFalse(response.body().contains("event:error\n"), response.body());
+        awaitStatus(user.getId(), "COMPLETED");
     }
 
     @Test
