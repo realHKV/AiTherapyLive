@@ -1,6 +1,6 @@
 # Step 10 — Transaction-safe chat and streaming lifecycle
 
-Status: **implementation locally validated; commit/push and PostgreSQL/Redis CI acceptance pending**.
+Status: **complete; committed and pushed; PostgreSQL/Redis CI passed**.
 
 ## Implemented
 
@@ -16,12 +16,11 @@ Status: **implementation locally validated; commit/push and PostgreSQL/Redis CI 
 
 - `bash ./mvnw -q -DskipTests test-compile` passed.
 - Focused routing, Bedrock, chat, Redis-admission, and HTTP tests passed.
-- `bash ./mvnw -q test` passed locally: 79 discovered, 68 passed, 11 skipped. The skipped Testcontainers checks include the new Postgres/Redis chat workflow tests and migration tests because Docker is unavailable here.
-- A GitHub Actions run with PostgreSQL and Redis is required before treating the integration gate as complete.
+- `bash ./mvnw -q test` passed locally: 81 discovered, 69 passed, 12 skipped. The skipped Testcontainers checks include the new Postgres/Redis chat workflow tests and migration tests because Docker is unavailable here.
+- GitHub Actions run [39571804383](https://github.com/realHKV/AiTherapyLive/actions/runs/39571804383) passed all 81 tests with PostgreSQL and Redis, including six chat workflow tests and a real HTTP SSE test that verifies event framing, Unicode deltas, request/cache headers, and completion.
 
 ## Remaining gates
 
-- Run the GitHub Actions workflow and resolve any migration, schema validation, Testcontainers, or workflow test failures.
-- Exercise client cancellation and HTTP event framing through a live stream client before Step 13 and before enabling v2 for the frontend.
-- Keep v2 disabled by default; no traffic switch has been made.
+- Before Step 13 and any frontend switch, retain a live-client cancellation check in the broader regression/contract-freeze pass; HTTP event framing and Unicode transport are already covered in CI.
+- Keep v2 disabled by default until the planned frontend/traffic gate; no traffic switch has been made.
 - AWS setup is not required for Step 10. The user chose Mumbai (`ap-south-1`) for Step 09's later Bedrock access/model evaluation. The AWS account still needs model access and an SSO/task-role setup before any smoke call; no credentials or AWS changes were made here.
