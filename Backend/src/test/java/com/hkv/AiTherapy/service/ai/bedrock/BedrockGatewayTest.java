@@ -115,16 +115,28 @@ class BedrockGatewayTest {
         assertTrue(neverCompletes.isCancelled());
 
         CompletableFuture<ConverseResponse> inFlight = new CompletableFuture<>();
+        clearInvocations(client);
         when(client.converse(any(ConverseRequest.class))).thenReturn(inFlight);
         CancellationToken cancellation = new CancellationToken();
         Thread worker = new Thread(() -> assertThrows(GenerationException.class,
                 () -> new BedrockGateway(client, Duration.ofSeconds(2)).generate(request(), cancellation)));
         worker.start();
         verify(client, timeout(500).atLeastOnce()).converse(any(ConverseRequest.class));
+        awaitBlockedOnProvider(worker);
         cancellation.cancel();
         try { worker.join(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); fail(e); }
         assertFalse(worker.isAlive());
         assertTrue(inFlight.isCancelled());
+    }
+
+    private static void awaitBlockedOnProvider(Thread worker) {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(1);
+        while (worker.isAlive() && worker.getState() != Thread.State.WAITING
+                && worker.getState() != Thread.State.TIMED_WAITING && System.nanoTime() < deadline) {
+            Thread.yield();
+        }
+        assertTrue(worker.getState() == Thread.State.WAITING || worker.getState() == Thread.State.TIMED_WAITING,
+                "provider future should be registered before cancellation");
     }
 
     @Test
