@@ -155,7 +155,7 @@ class ChatTurnWorkflowTest {
         String key = UUID.randomUUID().toString();
 
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port
-                        + "/chat/sessions/" + conversation.getId() + "/stream"))
+                        + "/api/v1/chat/sessions/" + conversation.getId() + "/stream"))
                 .timeout(Duration.ofSeconds(5))
                 .header("Authorization", "Bearer synthetic-stream-token")
                 .header("X-Chat-Stream-Version", "2")
@@ -165,7 +165,7 @@ class ChatTurnWorkflowTest {
                 .build();
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(200, response.statusCode());
+        assertEquals(200, response.statusCode(), response.body());
         assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"));
         assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(null));
         assertTrue(response.headers().firstValue("X-Request-Id").isPresent());
