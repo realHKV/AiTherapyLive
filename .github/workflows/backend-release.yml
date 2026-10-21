@@ -1,6 +1,8 @@
 name: Backend image release
 
 on:
+  push:
+    tags: ['backend-image-*']
   workflow_dispatch:
 
 permissions:
@@ -13,12 +15,21 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main' && github.repository == 'realHKV/AiTherapyLive'
+    if: >-
+      github.repository == 'realHKV/AiTherapyLive' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/backend-image-'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: backend-release
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Require release tag on the tested backend branch tip
+        if: startsWith(github.ref, 'refs/tags/backend-image-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/codex/backend-baseline" --jq .object.sha)
+          test "$branch_sha" = "$GITHUB_SHA"
       - name: Require a successful image gate for this main commit
         env:
           GH_TOKEN: ${{ github.token }}
