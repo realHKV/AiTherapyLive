@@ -1,0 +1,30 @@
+# Step 14 handoff — backend container and release workflow
+
+Status: **implementation complete; Docker Hub publication pending** on `codex/backend-baseline` at `f5085d0`. No image has been published and no digest has been recorded. The registry owner has not yet selected a Docker Hub namespace/repository or configured its push credential.
+
+## Work completed
+
+- Rebuilt `Dockerfile` as a multi-stage Maven/Java 21 image with inspected, immutable amd64 base-image digests. Runtime uses UID/GID 10001, read-only application files, `SIGTERM`, and the application's existing graceful shutdown setting. The image accepts external configuration through environment variables.
+- Added a plain `-migrator.jar` containing only `MigrationMain` and the Flyway SQL resources. `entrypoint.sh migrate` runs Flyway without loading Spring, starting HTTP, or starting application jobs; it requires `DATABASE_URL`, `DATABASE_USER`, and `DATABASE_PASSWORD`. Missing input exits 2; a migration/connectivity failure exits 1 without printing a JDBC URL or credential. It retains the application's `baselineOnMigrate` and validation behavior.
+- Added PR/branch CI that runs Maven `verify` with PostgreSQL/Redis container tests, builds the image, scans dependencies and the built container, checks the non-root user and missing-config error, runs the migrator twice against real PostgreSQL, checks migration history, starts the server against PostgreSQL/Redis with synthetic keys, checks readiness, and sends `SIGTERM` to verify shutdown.
+- Added a manual, main-branch-only Docker Hub release workflow. It verifies tests, builds and publishes a `sha-<full commit>` tag with SBOM/provenance attestations, scans the published digest, and writes a JSON artifact with source commit, image, platform, and immutable digest. Registry secrets are available only in the `backend-release` environment; PR jobs have read-only repository permissions and no publishing step. All third-party actions in these workflows are pinned to reviewed commit SHAs.
+- The first image scan caught embedded Tomcat 11.0.24 findings. Maven now resolves Tomcat 11.0.27 across core, WebSocket, and EL through one managed property. This is an additive dependency patch; no schema or API contract changed.
+
+## Verification
+
+- Local Maven package and dependency tree passed with Tomcat 11.0.27. Local tests: 104 discovered, 79 passed, 25 container tests skipped because Docker is unavailable to this checkout; zero failures/errors. The standalone migrator classpath starts and exits 2 with the expected missing `DATABASE_URL` message.
+- GitHub Actions run [39584616439](https://github.com/realHKV/AiTherapyLive/actions/runs/39584616439) passed Maven verification, image build, dependency scan, non-root and missing-config checks, real PostgreSQL migration/idempotence, app readiness, and shutdown. Its final image scan failed on Tomcat 11.0.24, leading to the patch above.
+- GitHub Actions [run 39585217236](https://github.com/realHKV/AiTherapyLive/actions/runs/39585217236) passed all 104 tests with zero failures/errors/skips, image build, dependency and image scans, non-root and missing-config checks, real PostgreSQL migration/idempotence, server readiness, and graceful shutdown. No local Docker image test was possible because the local Docker socket is unavailable.
+
+## Registry setup and promotion
+
+1. Create a private Docker Hub repository named `aitherapy-backend` under your account namespace. A private repository keeps the release artifact access controlled; Step 15 must then configure ECS `repositoryCredentials` with a separate read-only pull token. If you choose another repository name or public visibility, set the variables below accordingly. The GitHub source repository is public, but that does not require the image repository to be public.
+2. In GitHub, configure the `backend-release` environment. Add environment variables `DOCKERHUB_NAMESPACE` and `DOCKERHUB_REPOSITORY`, plus environment secrets `DOCKERHUB_USERNAME` and a Docker Hub access token with push rights to that repository. Do not put token values in Git, chat, build arguments, or issue comments. Add required reviewers to the environment if desired.
+3. Merge the reviewed branch to `main`. Run **Backend image release** manually against `main` after the branch CI gate is green. The release workflow never runs on pull requests and refuses other refs/repositories.
+4. Copy the `backend-image-release-<commit>` artifact's exact digest into the Step 15 task definition and release record. Do not substitute the mutable tag for the digest. Keep the JSON artifact as the promotion record. No digest is claimed before publication.
+
+## Compatibility, rollout, and rollback
+
+- This step does not change the database or active deployment. Local/default application startup still runs Flyway as before. In Step 15, run `migrate` as a one-off ECS task, verify task exit code 0, then run the service with `SPRING_FLYWAY_ENABLED=false` after the migration path is tested. Use dedicated DDL credentials for the migration task where practical; service tasks should use their existing data credentials. Never set Flyway disabled before the one-off migrator passes.
+- `serve` is the default command. `migrate` requires only the three database environment variables; it does not require JWT, encryption, OAuth, Redis, or Bedrock settings. For rollback, redeploy the prior compatible application image by digest. An image rollback does not reverse Flyway migrations; maintain additive SQL during the rollback window.
+- Publishing and ECS deployment remain separate actions. This workflow does not request AWS credentials or create AWS resources. Optional ECR mirroring is deferred until Step 15's registry and network decision.

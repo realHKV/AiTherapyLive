@@ -52,7 +52,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 11 | Durable summaries and extraction jobs | Complete | [Step 11 handoff](handoffs/STEP-11.md); PostgreSQL/Redis integration and retry/replay coverage passed in CI |
 | 12 | Bedrock-only configuration and operational readiness | Complete | `93dd717`–`6900723`; [Step 12 handoff](handoffs/STEP-12.md); final PostgreSQL/Redis CI passed 98 tests |
 | 13 | Backend regression and contract freeze | Complete | `28ee148`–`db1c9c7`; [Step 13 handoff](handoffs/STEP-13.md); PostgreSQL/Redis CI run [39581071817](https://github.com/realHKV/AiTherapyLive/actions/runs/39581071817) passed all 104 tests |
-| 14 | Docker image and CI publishing workflow | Pending | — |
+| 14 | Docker image and CI publishing workflow | In progress | `88fe40d`, `f5085d0`; [Step 14 handoff](handoffs/STEP-14.md); [CI run 39585217236](https://github.com/realHKV/AiTherapyLive/actions/runs/39585217236) passed tests, image build, migration/server smoke and scans; Docker Hub publication awaits repository and CI credentials |
 | 15 | ECS Fargate infrastructure and release workflow | Pending | — |
 | 16 | Staging deployment and restore/rollback rehearsal | Pending | — |
 | 17 | Backend handoff package for frontend | Pending | — |
