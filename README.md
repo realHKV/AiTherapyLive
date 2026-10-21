@@ -4,7 +4,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 
 ## ✨ Features
 
-- **AI Chat** — Real-time conversational support powered by Groq and OpenAI models
+- **AI Chat** — Bedrock-backed, server-routed chat (the v2 client path is being integrated)
 - **Mood Tracking** — Log and visualize emotional patterns over time
 - **Redis Caching** — Fast session and chat data handling via Upstash Redis
 - **Persistent Sessions** — Pick up conversations where you left off
@@ -41,7 +41,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 | Frontend | React (deployed on [Netlify](https://www.netlify.com/)) |
 | Backend | Spring Boot (deployed on [Render](https://render.com/)) |
 | Cache/Session Store | Redis via [Upstash](https://upstash.com/) |
-| AI/LLM | [Groq](https://groq.com/) + OpenAI API |
+| AI/LLM | Amazon Bedrock (AWS setup and model access required before enabling) |
 
 ## 🚀 Getting Started
 
@@ -50,7 +50,8 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 - Java 17+ and Maven
 - Node.js 18+ and npm
 - A Redis instance (e.g. [Upstash](https://upstash.com/))
-- API keys for Groq and OpenAI
+- PostgreSQL and Redis for the backend
+- AWS account and approved Bedrock model access only when enabling live AI
 
 ### Backend Setup
 
@@ -58,16 +59,7 @@ TrustTherapy.ai is an AI-powered chatbot designed to provide accessible mental h
 cd Backend
 ```
 
-Create an `application.properties` (or `.env`, depending on your config setup) with:
-
-```env
-GROQ_API_KEY=your_groq_api_key
-OPENAI_API_KEY=your_openai_api_key
-REDIS_URL=your_upstash_redis_url
-REDIS_PASSWORD=your_upstash_redis_password
-RAZORPAY_KEY_ID=your_razorpay_key_id
-RAZORPAY_KEY_SECRET=your_razorpay_key_secret
-```
+Copy `Backend/.env.example` to a local environment file and configure database, Redis, JWT, encryption, Google OAuth, and Razorpay values as needed. The Bedrock path is off by default; the local development guide documents the AWS SDK credential chain. Do not add provider API keys.
 
 Run the backend:
 
@@ -101,7 +93,7 @@ The app will be available at `http://localhost:3000`.
 ## 🌐 Deployment
 
 - **Frontend** is deployed on **Netlify**, connected to auto-deploy from the `main` branch.
-- **Backend** is deployed on **Render** as a web service.
+- **Backend** currently runs on Render. The target AWS deployment is planned for a later migration step; no AWS infrastructure has been provisioned.
 - **Redis** is hosted on **Upstash** for low-latency caching of chat sessions and mood data.
 
 Make sure to set the corresponding environment variables (API keys, Redis credentials, and the deployed backend URL) in your Netlify and Render dashboards.
@@ -122,7 +114,7 @@ Given the sensitive nature of therapy conversations, TrustTherapy.ai takes data 
 
 - **Encryption in transit** — All client-server and server-Redis communication uses TLS/HTTPS
 - **Encryption at rest** — Sensitive user data (chat logs, mood entries) is encrypted before persistence
-- **Secrets management** — API keys and credentials (Groq, OpenAI, Razorpay, Redis) are stored as environment variables, never hardcoded
+- **Secrets management** — Application secrets are injected through the runtime environment; AWS deployments should use ECS task roles and managed secret injection
 - **Payment security** — No card or payment details are stored on TrustTherapy.ai servers; all payment handling is delegated to Razorpay's PCI-DSS compliant infrastructure
 
 ## 🤝 Contributing

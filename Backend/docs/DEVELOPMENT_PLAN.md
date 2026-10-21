@@ -176,6 +176,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 ### Step 12 — Finalize Bedrock-only runtime and operations
 
+**Progress:** implementation is in verification. The OpenAI-compatible adapter and API-key configuration are removed; unversioned AI routes fail closed until the frontend moves to v2 in Step 17. Production-profile startup validates application secrets, HTTPS CORS origins, Bedrock/routing/model prerequisites, region alignment, v2 chat, and extraction worker settings. Actuator readiness checks PostgreSQL/Redis while liveness stays independent of dependencies and Bedrock; metrics and correlation IDs exclude user content. Chat execution is bounded, stream shutdown cancels provider work through the normal settlement path, and the UTC subscription schedule uses a PostgreSQL advisory lock across replicas. Dollar spend is intentionally not estimated until model/region pricing is verified. No AWS calls or setup have been made.
+
 **Read:** all AI entry points/configuration, async executor/schedulers, security, Dockerfile, and operational requirements in AWS_MIGRATION.
 
 **Implement:** remove the old external-provider adapter/configuration/AI-key dependency from the target runtime after the new path passes. Add startup configuration validation, health/readiness, bounded execution, safe structured logs, correlation IDs, metrics for streams/jobs/tokens/spend, and graceful shutdown. Coordinate scheduled work across instances. Define health behavior for DB/Redis/model failures and minimize diagnostic exposure.

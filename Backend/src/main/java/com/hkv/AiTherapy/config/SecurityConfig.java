@@ -50,6 +50,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout", "/auth/oauth/exchange").permitAll()
                         .requestMatchers("/oauth2/authorization/**", "/login/oauth2/code/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payment/webhook").permitAll()
                         .anyRequest().authenticated())
@@ -63,12 +64,5 @@ public class SecurityConfig {
                 .addFilterAfter(redisRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    @Bean
-    public org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor taskExecutor() {
-        return new org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor(
-                new org.springframework.core.task.SimpleAsyncTaskExecutor()
-        );
     }
 }

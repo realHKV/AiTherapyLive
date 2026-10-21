@@ -57,6 +57,20 @@ spring:
       redis:
         namespace: aitherapy:oauth-session
 
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  task:
+    scheduling:
+      pool:
+        size: 2
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
+
 
   # ─── Security / OAuth2 ───────────────────────────────────────────────────────
   security:
@@ -136,15 +150,6 @@ ai:
     max-attempts: ${AI_EXTRACTION_MAX_ATTEMPTS:5}
     lease: ${AI_EXTRACTION_LEASE:PT2M}
     max-output-tokens: ${AI_EXTRACTION_MAX_OUTPUT_TOKENS:1800}
-  provider:
-    base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
-    api-key: ${AI_API_KEY:}
-    model: ${AI_MODEL:llama-3.1-8b-instant}
-    pro-base-url: ${AI_PRO_BASE_URL:${ai.provider.base-url}}
-    pro-api-key: ${AI_PRO_API_KEY:${ai.provider.api-key}}
-    pro-model: ${AI_PRO_MODEL:${ai.provider.model}}
-    max-tokens: 512
-    temperature: 0.75
   limits:
     messages-per-hour: 20
     context-messages: 20
@@ -157,16 +162,18 @@ cors:
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging:
+  structured:
+    format:
+      console: logstash
   level:
     com.hkv.AiTherapy: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  pattern:
-    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
 
 # ─── Server ──────────────────────────────────────────────────────────────────
 server:
   port: 8080
+  shutdown: graceful
   servlet:
     session:
       timeout: 5m
@@ -175,6 +182,29 @@ server:
     include-message: never
     include-binding-errors: never
     include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      show-components: never
+      group:
+        readiness:
+          include: readinessState,db,redis
+        liveness:
+          include: livenessState
+  health:
+    bedrock:
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 # ─── Razorpay ────────────────────────────────────────────────────────────────────────────────
 razorpay:

@@ -31,6 +31,9 @@ import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
 import com.hkv.AiTherapy.service.usage.UsageAccountingService;
 import com.hkv.AiTherapy.service.usage.UsageException;
 import com.hkv.AiTherapy.service.usage.UsageReservation;
+import com.hkv.AiTherapy.service.operations.AiOperationalMetrics;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -88,6 +91,7 @@ public class ChatTurnWorkflow {
     private final int maxInputTokens;
     private final int maxOutputTokens;
     private final ConcurrentHashMap<UUID, Set<CancellationToken>> activeStreams = new ConcurrentHashMap<>();
+    private AiOperationalMetrics operationalMetrics;
 
     public ChatTurnWorkflow(PlatformTransactionManager transactionManager, UserRepository users,
                             ConversationRepository conversations, MessageRepository messages,
@@ -123,6 +127,11 @@ public class ChatTurnWorkflow {
             throw new IllegalStateException("Chat timeout or token limits are inconsistent");
         this.maxInputTokens = maxInputTokens;
         this.maxOutputTokens = maxOutputTokens;
+    }
+
+    @Autowired(required = false)
+    public void setOperationalMetrics(AiOperationalMetrics operationalMetrics) {
+        this.operationalMetrics = operationalMetrics;
     }
 
     /** Reuses an active session on reload; a fresh greeting is accounted and persisted exactly once. */
@@ -177,6 +186,7 @@ public class ChatTurnWorkflow {
 
         CancellationToken cancellation = new CancellationToken();
         register(conversationId, cancellation);
+        if (operationalMetrics != null) operationalMetrics.streamStarted();
         AtomicBoolean terminal = new AtomicBoolean();
         AtomicBoolean connected = new AtomicBoolean(true);
         AtomicBoolean attempted = new AtomicBoolean();
@@ -191,6 +201,8 @@ public class ChatTurnWorkflow {
         };
         java.util.function.Consumer<GenerationFailure> finishFailure = failure -> {
             if (!terminal.compareAndSet(false, true)) return;
+            if (operationalMetrics != null) operationalMetrics.streamFinished(
+                    failure.code() == GenerationFailure.Code.CANCELLED ? "cancelled" : "failed");
             cancelTimers.run();
             cancellation.cancel();
             boolean persisted = persistFailure(prepared.requestId(), failure, attempted.get(), false);
@@ -242,6 +254,7 @@ public class ChatTurnWorkflow {
                             try {
                                 assistant = persistSuccess(prepared.requestId(), completed.result());
                             } catch (RuntimeException e) {
+                                if (operationalMetrics != null) operationalMetrics.streamFinished("failed");
                                 boolean persisted = persistFailure(prepared.requestId(), unavailable(), true, false);
                                 releaseLease(userId, prepared.requestId());
                                 unregister(conversationId, cancellation);
@@ -251,6 +264,8 @@ public class ChatTurnWorkflow {
                             }
                             releaseLease(userId, prepared.requestId());
                             unregister(conversationId, cancellation);
+                            if (operationalMetrics != null) operationalMetrics.streamFinished(
+                                    assistant == null ? "cancelled" : "completed");
                             if (connected.get() && assistant != null) {
                                 try {
                                     send(emitter, "complete", new CompleteEvent(prepared.requestId().toString(),
@@ -293,6 +308,12 @@ public class ChatTurnWorkflow {
     public void cancelConversation(UUID userId, UUID conversationId) {
         Set<CancellationToken> tokens = activeStreams.get(conversationId);
         if (tokens != null) tokens.forEach(CancellationToken::cancel);
+    }
+
+    /** Cancels active upstream streams so their normal terminal path settles usage during task shutdown. */
+    @PreDestroy
+    public void cancelActiveStreamsOnShutdown() {
+        activeStreams.values().forEach(tokens -> tokens.forEach(CancellationToken::cancel));
     }
 
     private SessionDecision prepareSession(UUID userId, String key) {

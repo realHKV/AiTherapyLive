@@ -65,7 +65,7 @@ Coordinate application graceful shutdown, Fargate stop timeout, ALB target drain
 
 ### HTTP and streaming
 
-- Add tested liveness/readiness endpoints, with deliberately scoped unauthenticated health access. Do not expose sensitive diagnostics. Database/Redis failures should affect readiness according to an explicit policy; avoid restarting every task just because the AI provider is briefly unavailable.
+- Use `/api/v1/actuator/health/liveness` for dependency-free liveness and `/api/v1/actuator/health/readiness` for PostgreSQL/Redis readiness. Health access is unauthenticated but component details are hidden. Do not make Bedrock availability a liveness dependency; avoid restarting every task during a short provider outage. Validate these paths through the ALB before using them as target health checks.
 - Preserve `/api/v1` through routing and update the frontend `VITE_API_BASE_URL` to include it. Test the separate fetch-based SSE path as well as Axios paths.
 - Configure trusted forwarded headers so OAuth produces the external HTTPS callback host. Register `https://<backend-host>/api/v1/login/oauth2/code/google` with Google; test cross-instance OAuth authorization state.
 - Set exact CORS origins, with the desired OAuth frontend first until that coupling is removed.

@@ -25,10 +25,12 @@ import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
 import com.hkv.AiTherapy.service.usage.UsageAccountingService;
 import com.hkv.AiTherapy.service.usage.UsageException;
 import com.hkv.AiTherapy.service.usage.UsageReservation;
+import com.hkv.AiTherapy.service.operations.AiOperationalMetrics;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -63,6 +65,7 @@ public class DurableExtractionProcessor {
     private final Duration jobLease;
     private final int outputTokens;
     private final String policyVersion;
+    private AiOperationalMetrics operationalMetrics;
 
     public DurableExtractionProcessor(ExtractionJobQueue queue, ExtractionJobRepository jobs,
                                       ConversationRepository conversations, MessageRepository messages,
@@ -80,6 +83,11 @@ public class DurableExtractionProcessor {
         this.router = router; this.validator = validator; this.accounting = accounting; this.admission = admission;
         this.transactions = new TransactionTemplate(txManager); this.policyVersion = policyVersion;
         this.jobLease = jobLease; this.outputTokens = outputTokens;
+    }
+
+    @Autowired(required = false)
+    public void setOperationalMetrics(AiOperationalMetrics operationalMetrics) {
+        this.operationalMetrics = operationalMetrics;
     }
 
     /** Processes at most one item; separate application instances coordinate through SKIP LOCKED claims. */
@@ -201,6 +209,7 @@ public class DurableExtractionProcessor {
             if (!eligible) {
                 job.setStatus("SUPERSEDED"); job.setLastErrorCode("CONTEXT_CHANGED"); finish(job, requestId);
                 accounting.settle(requestId, result.usage().inputTokens(), result.usage().outputTokens(), "COMPLETED", null);
+                if (operationalMetrics != null) operationalMetrics.extractionTransition("superseded");
                 return false;
             }
             conversation.setSessionSummary(extraction.summary());
@@ -210,6 +219,7 @@ public class DurableExtractionProcessor {
                 persistCandidate(job, user, conversation, candidate, snapshot.sourceRevision());
             job.setStatus("COMPLETED"); job.setLastErrorCode(null); finish(job, requestId);
             accounting.settle(requestId, result.usage().inputTokens(), result.usage().outputTokens(), "COMPLETED", null);
+            if (operationalMetrics != null) operationalMetrics.extractionTransition("completed");
             return true;
         }));
     }
@@ -250,6 +260,7 @@ public class DurableExtractionProcessor {
             conversation.setSummarizedAt(Instant.now());
             conversation.setSummaryRevision(snapshot.sourceRevision());
             job.setStatus("COMPLETED"); job.setLastErrorCode(null); finish(job, null);
+            if (operationalMetrics != null) operationalMetrics.extractionTransition("completed");
         });
     }
 
@@ -268,12 +279,14 @@ public class DurableExtractionProcessor {
             job.setLeaseExpiresAt(null); job.setClaimedBy(null);
             job.setNextAttemptAt(Instant.now().plusSeconds(Math.min(300, 2L << Math.min(7, job.getAttemptCount()))));
             if (exhausted) job.setCompletedAt(Instant.now());
+            if (operationalMetrics != null) operationalMetrics.extractionTransition(exhausted ? "failed" : "retry");
         }));
     }
 
     private void supersede(UUID jobId) {
         jobs.findByIdForUpdate(jobId).ifPresent(job -> {
             job.setStatus("SUPERSEDED"); job.setLastErrorCode("CONTEXT_CHANGED"); finish(job, null);
+            if (operationalMetrics != null) operationalMetrics.extractionTransition("superseded");
         });
     }
 

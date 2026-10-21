@@ -1,8 +1,8 @@
 # Backend reference
 
-Reviewed: 2026-10-19. Scope: backend source, SQL migrations, build/container configuration, existing tests, and selected frontend API callers. This is a static source review; no production access, startup, or test execution was performed. Existing local edits were preserved. All paths below are relative to this document unless stated otherwise.
+Reviewed: 2026-10-21. Scope: backend source, SQL migrations, build/container configuration, tests, and selected frontend API callers. No production access or live AWS request was made. All paths below are relative to this document unless stated otherwise.
 
-For the proposed Docker Hub/ECS Fargate, Bedrock-only tier/model routing, rate limits, Cognito evaluation, Spring upgrades, and future voice, see [future architecture](FUTURE_ARCHITECTURE.md). None of those proposals changes the current behavior documented here.
+For the Docker Hub/ECS Fargate deployment proposal, future Cognito evaluation, Spring upgrades, and voice, see [future architecture](FUTURE_ARCHITECTURE.md). Bedrock routing and usage accounting now exist in the v2 chat workflow; production activation still requires AWS model access and reviewed model/policy settings.
 
 The approved storage direction remains PostgreSQL; [memory design](MEMORY_DESIGN.md) specifies future confirmation, retrieval, provenance, and forget/reset behavior. Those features are not yet implemented; this document preserves the current-state snapshot.
 
@@ -10,7 +10,7 @@ For a focused comparison of the current schema with frontend/API behavior, see [
 
 ## 1. Architecture and boundaries
 
-The backend is one Spring MVC application, not a set of microservices. It uses PostgreSQL for durable data and Redis for access-token revocation and chat rate limits. AI responses use an OpenAI-compatible HTTP API (Groq by default). Google OAuth and Razorpay are separate external integrations.
+The backend is one Spring MVC application, not a set of microservices. It uses PostgreSQL for durable data and Redis for access-token revocation, chat rate limits, and short-lived admission leases. The accounted v2 generation path uses Amazon Bedrock. The old OpenAI-compatible adapter and API-key settings were removed. Legacy chat calls fail closed until clients migrate to v2. Google OAuth and Razorpay are separate external integrations.
 
 ```mermaid
 flowchart LR
@@ -23,8 +23,8 @@ flowchart LR
     JPA --> DB[(PostgreSQL)]
     Security --> Redis[(Redis)]
     Services --> Redis
-    Services --> Gateway[AIGateway]
-    Gateway --> AI[External AI provider]
+    Services --> Gateway[GenerationRouter and usage accounting]
+    Gateway --> Bedrock[Amazon Bedrock Converse]
     Services --> PaymentAPI[Razorpay API]
     Services --> Event[In-process session-ended event]
     Event --> Summary[Async summarization]
@@ -32,7 +32,7 @@ flowchart LR
     Summary --> JPA
 ```
 
-There is no durable queue, vector database, file-upload storage, AWS SDK integration, infrastructure-as-code, or Actuator dependency in the reviewed backend. Redis is not currently a conversation or prompt cache.
+Extraction jobs are stored in PostgreSQL and claimed with leases. There is no separate queue or vector database. Bedrock credentials use the AWS SDK default provider chain; deployment should use an ECS task role, not static access keys. Actuator exposes liveness/readiness and authenticated operational metrics. Redis is not a conversation or prompt cache.
 
 | Area | Source | Responsibility |
 | --- | --- | --- |
@@ -78,7 +78,7 @@ The legacy session start still creates a new conversation and calls the old prov
 
 [PromptBuilder](../src/main/java/com/hkv/AiTherapy/service/ai/PromptBuilder.java) uses the profile name, age, persona, style, topics, top five traits, and five most important unresolved memories. Missing profiles get a short fallback prompt. Due-follow-up and last-completed-session repository methods exist but are not used by this builder. There is no enforced prompt token budget.
 
-[OpenAICompatibleGateway](../src/main/java/com/hkv/AiTherapy/service/ai/OpenAICompatibleGateway.java) posts to `<base-url>/chat/completions` for the legacy chat path. Active PRO status selects the PRO endpoint/key/model for greetings and chat. Extraction no longer calls this adapter; it uses the shared `GenerationRouter` and usage-accounting boundary. Chat requests hardcode temperature 0.7 and max tokens 1500. Non-streamed requests have a 60-second request timeout, up to three attempts, and backoff for HTTP 429. Streaming has no request timeout or retry policy; provider 429 is emitted as `[ERROR: RATE_LIMIT_EXCEEDED]` and can be saved as assistant content. Token counts on the legacy path are estimates, not provider billing measurements.
+The `GenerationRouter` selects model IDs from deployment policy and effective server-side entitlement. It sends generation to the Bedrock Converse adapter, with durable usage reservations and token settlement. The old `AIGateway` bean is now a fail-closed compatibility guard; it performs no network calls. `DisabledLegacyAIGateway` returns 503 for unversioned legacy chat. Clients must opt into the v2 chat and SSE headers until the frontend migration is complete.
 
 ### Summarization and scheduled work
 
@@ -86,7 +86,7 @@ The legacy session start still creates a new conversation and calls the old prov
 
 Successful output is saved atomically with the job state after locking and rechecking the active account, completed eligible conversation, and current context revision. Summaries are revision-stamped; profile and memory outputs become pending candidates with source message, conversation, job, and deterministic output identity. Extraction does not overwrite confirmed profile values. Account deletion, conversation suppression, or profile reset makes stale jobs/results non-persistable. The worker defaults off, so enabling it requires the routed provider and usage dependencies to be configured first. The legacy mid-session refresh route remains a no-op for extraction.
 
-[SubscriptionDowngradeJob](../src/main/java/com/hkv/AiTherapy/service/job/SubscriptionDowngradeJob.java) runs at midnight in the scheduler's timezone (no explicit zone). Every application instance would run it. Effective PRO entitlement separately checks `tier == PRO` and a future expiry, so expired access does not depend on the job running.
+[SubscriptionDowngradeJob](../src/main/java/com/hkv/AiTherapy/service/job/SubscriptionDowngradeJob.java) runs at midnight UTC under a PostgreSQL transaction-scoped advisory lock so only one replica performs the scheduled update. Extraction workers coordinate through row leases/`SKIP LOCKED`; usage reconciliation uses transactional row locks. Effective PRO entitlement separately checks `tier == PRO` and a future expiry, so expired access does not depend on the downgrade job running.
 
 ### Payments and deletion
 
@@ -180,13 +180,16 @@ Source: [application.yaml](../src/main/resources/application.yaml). Spring recei
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL` | localhost, 6379, empty password, false; timeout 2 seconds |
 | `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` | Required for startup: base64 DER PKCS#8 private key and X.509 public key; parser strips whitespace, not PEM headers |
 | `ENCRYPTION_MASTER_KEY` | Required for startup: base64 encoding of exactly 32 bytes |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Dummy defaults; real credentials needed for OAuth |
-| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | Default URL `https://api.groq.com/openai/v1`, empty key, model `llama-3.1-8b-instant`; model availability not verified |
-| `AI_PRO_BASE_URL`, `AI_PRO_API_KEY`, `AI_PRO_MODEL` | Fall back individually to default provider settings |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Empty by default; required by the `production` profile |
+| `BEDROCK_REGION`, `AI_BEDROCK_ENABLED` | AWS region (user selected Mumbai `ap-south-1`) and explicit provider enable switch; off by default |
+| `AI_ROUTING_ENABLED`, `AI_ROUTING_POLICY_ID`, `BEDROCK_FREE_MODEL_ID`, `BEDROCK_PRO_MODEL_ID`, `BEDROCK_SUMMARY_MODEL_ID` | Explicit server-side routing policy and model IDs; required before routing starts; not yet selected or live-tested |
+| `AI_CHAT_V2_ENABLED`, `AI_EXTRACTION_WORKER_ENABLED` | Enable the accounted v2 chat path and durable extraction worker; both off by default |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated exact origins, default `http://localhost:5173`; first also determines OAuth frontend redirect |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Used by manual payment fetch; empty defaults |
 | `RAZORPAY_WEBHOOK_SECRET` | Required for signed webhook processing in every mode |
-| `DEV_MODE` | Defaults false; `/dev/*` controllers are absent unless explicitly true |
+| `DEV_MODE` | Defaults false; `/dev/*` controllers are absent unless explicitly true. The `production` profile rejects dev mode and requires complete secrets, HTTPS CORS origins, and Bedrock/v2 features |
+
+The AWS SDK uses its default credential chain. On ECS, attach a least-privilege task role for the selected Bedrock model(s); do not inject long-lived AWS keys. Readiness at `/api/v1/actuator/health/readiness` includes PostgreSQL and Redis; liveness excludes those dependencies. Bedrock is intentionally excluded from liveness/readiness so a short provider outage does not restart every task. `/actuator/metrics` requires authentication. Metrics include active/completed streams, extraction queue depth/transitions, settled token counts, and request outcomes with bounded purpose/tier/model/region labels. Dollar spend is not reported until the approved model, region, and pricing policy are fixed and verified.
 
 Hikari allows 10 connections per instance (minimum idle 2). Redis contains `jwt:denylist:*` with a 900-second default TTL and `rl:chat:<userId>` with a one-minute TTL. The chat filter hardcodes 20 authenticated POST requests per minute across session creation, messaging/streaming, and profile refresh. Increment and expiry are separate operations. Redis failure prevents normal JWT authentication; it is an availability dependency, not an optional cache.
 
@@ -208,7 +211,7 @@ If the wrapper lacks execute permission, use `sh mvnw`. On Windows use `mvnw.cmd
 docker build -t aitherapy-backend:local Backend
 ```
 
-The Dockerfile skips tests, copies only `pom.xml` and `src` into its build stage, and runs the resulting JAR as a non-root user on 8080. Run tests separately before release. Supply runtime variables securely and ensure the database/Redis hostnames are reachable from inside the container. There is no public health endpoint configured; `/` is not a readiness check.
+The Dockerfile skips tests, copies only `pom.xml` and `src` into its build stage, and runs the resulting JAR as a non-root user on 8080. Run tests separately before release. Supply runtime variables securely and ensure the database/Redis hostnames are reachable from inside the container. `/api/v1/actuator/health/liveness` is the dependency-free liveness probe; `/api/v1/actuator/health/readiness` checks PostgreSQL and Redis. Health responses hide component details; `/actuator/metrics` requires authentication.
 
 ## 6. Findings to address before major deployment changes
 
@@ -220,10 +223,10 @@ These are source-level findings, not claims from a penetration test. Priorities 
 | P0 (partly addressed) | [OAuth2SuccessHandler](../src/main/java/com/hkv/AiTherapy/security/OAuth2SuccessHandler.java) previously logged JWTs and still sends them in URLs | Token logging and the unused token-bearing source file were removed; URL handoff and Git history cleanup remain |
 | P0 | [SubscriptionService](../src/main/java/com/hkv/AiTherapy/service/payment/SubscriptionService.java) does not bind manual verification to a server-owned user/order or enforce INR | Verify ownership, currency, amount, and replay/concurrency behavior before accepting payment-derived entitlement |
 | P1 (Step 01 addressed) | [SecurityConfig](../src/main/java/com/hkv/AiTherapy/config/SecurityConfig.java) previously permitted all `/auth/**`, including account deletion | Only the specified public auth endpoints remain public; deletion requires a JWT |
-| P1 | Summarization races commit, loses events on restart, and can mark failed extraction complete | After-commit dispatch plus durable retry/idempotency and explicit failure state |
+| P1 (Step 11 addressed) | Summarization used to race commit, lose events on restart, and mark failed extraction complete | PostgreSQL job table, leases/retries/replay, evidence validation, and atomic terminal persistence are implemented |
 | P1 (partly addressed in v2) | Legacy session start/message operations retain weaker concurrency semantics | Preserve legacy contract during rollout; migrate frontend to tested v2 before disabling the legacy route |
 | P1 (partly addressed in v2) | Legacy stream persistence/cancellation is incomplete; remote calls can hold DB transactions | Keep legacy isolated; complete the v2 Postgres/Redis and HTTP stream gates before enabling it |
-| P1 | No health checks/metrics; unbounded SimpleAsyncTaskExecutor | Add readiness/liveness, metrics, and bounded execution before scaling; security log level is now WARN |
+| P1 (Step 12 addressed) | No health checks/metrics; unbounded SimpleAsyncTaskExecutor | Actuator readiness/liveness and operational metrics are enabled; chat work uses a bounded pool; legacy external AI adapter/configuration removed |
 | P1 | OAuth state across replicas and JWT continuity have no deployment tests | Test redirects, token refresh, logout, restart, and multi-instance behavior |
 | P2 | Profile GET creates data inside a read-only transaction; V2 fields unused; memory title schema mismatch | Add real database coverage and reconcile intended schema/API behavior |
 | P2 | Chat size, memory pagination, and profile length limits incomplete; errors inconsistent | Validate boundaries and implement a tested error contract |

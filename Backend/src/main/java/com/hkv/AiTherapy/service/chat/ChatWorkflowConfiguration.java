@@ -2,6 +2,7 @@ package com.hkv.AiTherapy.service.chat;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.hkv.AiTherapy.config.MdcTaskDecorator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -24,6 +25,7 @@ public class ChatWorkflowConfiguration {
         executor.setMaxPoolSize(workers);
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("chat-generation-");
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());

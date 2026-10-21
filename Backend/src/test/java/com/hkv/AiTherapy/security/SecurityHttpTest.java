@@ -130,14 +130,16 @@ class SecurityHttpTest {
     }
 
     @Test
-    void corsAllowsV2IdempotencyHeadersAndExposesStreamRequestId() throws Exception {
+    void corsAllowsV2AndCorrelationHeadersAndExposesRequestIds() throws Exception {
         mvc.perform(options("/chat/sessions/" + UUID.randomUUID() + "/stream")
                         .header("Origin", "http://localhost:5173")
                         .header("Access-Control-Request-Method", "POST")
-                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key,x-chat-stream-version"))
+                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key,x-chat-stream-version,x-correlation-id"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("x-chat-stream-version")))
-                .andExpect(header().string("Access-Control-Expose-Headers", org.hamcrest.Matchers.containsString("X-Request-Id")));
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("x-correlation-id")))
+                .andExpect(header().string("Access-Control-Expose-Headers", org.hamcrest.Matchers.containsString("X-Request-Id")))
+                .andExpect(header().string("Access-Control-Expose-Headers", org.hamcrest.Matchers.containsString("X-Correlation-Id")));
     }
 
     @Test

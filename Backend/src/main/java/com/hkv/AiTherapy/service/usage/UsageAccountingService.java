@@ -6,6 +6,10 @@ import com.hkv.AiTherapy.repository.AiAttemptRepository;
 import com.hkv.AiTherapy.repository.AiRequestRepository;
 import com.hkv.AiTherapy.repository.ChatTurnRepository;
 import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,12 +35,16 @@ public class UsageAccountingService {
     private final ChatTurnRepository chatTurns;
     private final UsagePolicy policy;
     private final Clock clock;
+    private volatile MeterRegistry meterRegistry;
 
     public UsageAccountingService(JdbcTemplate jdbc, AiRequestRepository requests, AiAttemptRepository attempts,
                                   ChatTurnRepository chatTurns, UsagePolicy policy, Clock clock) {
         this.jdbc = jdbc; this.requests = requests; this.attempts = attempts; this.chatTurns = chatTurns;
         this.policy = policy; this.clock = clock;
     }
+
+    @Autowired(required = false)
+    public void setMeterRegistry(MeterRegistry meterRegistry) { this.meterRegistry = meterRegistry; }
 
     @Transactional
     public UsageReservation reserve(ResolvedGeneration generation, String idempotencyKey,
@@ -109,6 +117,19 @@ public class UsageAccountingService {
         }
         LocalDate day = LocalDate.ofInstant(request.getCreatedAt(), ZoneOffset.UTC);
         settleBuckets(request, day, settled);
+        recordSettlement(request, terminalStatus, settled);
+    }
+
+    private void recordSettlement(AiRequest request, String status, int settledTokens) {
+        MeterRegistry registry = meterRegistry;
+        if (registry == null) return;
+        Counter.builder("ai.generation.requests")
+                .tag("purpose", request.getPurpose()).tag("tier", request.getTier()).tag("result", status)
+                .register(registry).increment();
+        DistributionSummary.builder("ai.generation.settled.tokens")
+                .tag("purpose", request.getPurpose()).tag("tier", request.getTier())
+                .tag("model", request.getModelId()).tag("region", request.getRegion())
+                .register(registry).record(settledTokens);
     }
 
     /** Releases admission for work abandoned before a provider attempt begins. */

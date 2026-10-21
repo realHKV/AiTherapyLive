@@ -44,8 +44,7 @@ public class ChatController {
             requireV2(version, "X-Chat-Request-Version");
             return ResponseEntity.ok(ApiResponse.success(workflow().startSession(UUID.fromString(userId), idempotencyKey)));
         }
-        ConversationResponse response = chatService.startSession(UUID.fromString(userId));
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+        throw legacyChatDisabled("X-Chat-Request-Version");
     }
 
     @PostMapping("/{sessionId}/messages")
@@ -59,8 +58,7 @@ public class ChatController {
             ChatMessageResponse response = workflow().submit(UUID.fromString(userId), sessionId, idempotencyKey, request.getContent());
             return ResponseEntity.ok(ApiResponse.success(response));
         }
-        ChatMessageResponse response = chatService.sendMessage(UUID.fromString(userId), sessionId, request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        throw legacyChatDisabled("X-Chat-Request-Version");
     }
 
     @PutMapping("/{sessionId}/end")
@@ -106,9 +104,8 @@ public class ChatController {
         // org.springframework.security.core.context.SecurityContext context =
         //         org.springframework.security.core.context.SecurityContextHolder.getContext();
 
-        SseEmitter emitter = chatService.streamMessage(id, userId, request);
-        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM)
-                .cacheControl(CacheControl.noStore()).body(emitter);
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "This stream API version is no longer enabled. Update the client to use stream version 2.");
     }
 
     private ChatTurnWorkflow workflow() {
@@ -120,5 +117,10 @@ public class ChatController {
 
     private static void requireV2(String version, String header) {
         if (!"2".equals(version)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, header + " must be 2.");
+    }
+
+    private static ResponseStatusException legacyChatDisabled(String header) {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "This chat API version is no longer enabled. Update the client to use version 2 with " + header + ".");
     }
 }

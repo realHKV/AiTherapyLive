@@ -17,6 +17,7 @@ import com.hkv.AiTherapy.service.ai.routing.GenerationResult;
 import com.hkv.AiTherapy.service.ai.routing.GenerationUsage;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
+import com.hkv.AiTherapy.service.job.ScheduledTaskCoordinator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +44,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,6 +87,7 @@ class ChatTurnWorkflowTest {
     @MockitoBean GenerationGateway gateway;
     @LocalServerPort int port;
     @Autowired ChatTurnWorkflow workflow;
+    @Autowired ScheduledTaskCoordinator scheduledTaskCoordinator;
     @Autowired ChatService chatService;
     @Autowired UserRepository users;
     @Autowired ConversationRepository conversations;
@@ -202,6 +207,94 @@ class ChatTurnWorkflowTest {
         var turn = turns.findAll().stream().filter(value -> value.getUser().getId().equals(user.getId())).findFirst().orElseThrow();
         assertEquals("GENERATION_TIMEOUT", turn.getFailureCode());
         assertNull(turn.getAssistantMessage());
+    }
+
+    @Test
+    void shutdownCancelsActiveStreamAndLeavesUsageForNormalSettlementPath() throws Exception {
+        User user = createUser();
+        Conversation conversation = createConversation(user);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch cancelled = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            CancellationToken token = invocation.getArgument(1);
+            var events = (java.util.function.Consumer<GenerationEvent>) invocation.getArgument(2);
+            token.onCancel(() -> {
+                cancelled.countDown();
+                events.accept(new GenerationEvent.Failed(new GenerationFailure(GenerationFailure.Code.CANCELLED, false)));
+            });
+            entered.countDown();
+            cancelled.await(1, TimeUnit.SECONDS);
+            return null;
+        }).when(gateway).stream(any(), any(), any());
+
+        workflow.stream(user.getId(), conversation.getId(), UUID.randomUUID().toString(), "Synthetic shutdown stream");
+        assertTrue(entered.await(1, TimeUnit.SECONDS));
+        workflow.cancelActiveStreamsOnShutdown();
+        assertTrue(cancelled.await(1, TimeUnit.SECONDS));
+        awaitStatus(user.getId(), "CANCELLED");
+        assertEquals("CANCELLED", requests.findAll().stream()
+                .filter(request -> request.getUser().getId().equals(user.getId())).findFirst().orElseThrow().getStatus());
+    }
+
+    @Test
+    void actuatorHealthIsPublicButMetricsRemainAuthenticatedAndHealthDetailsStayHidden() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> readiness = client.send(HttpRequest.newBuilder(URI.create(
+                        "http://localhost:" + port + "/api/v1/actuator/health/readiness")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, readiness.statusCode(), readiness.body());
+        assertTrue(readiness.body().contains("\"status\":\"UP\""), readiness.body());
+        assertFalse(readiness.body().contains("components"), readiness.body());
+
+        HttpResponse<String> metrics = client.send(HttpRequest.newBuilder(URI.create(
+                        "http://localhost:" + port + "/api/v1/actuator/metrics")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(401, metrics.statusCode());
+    }
+
+    @Test
+    void legacyChatEndpointFailsBeforePersistingOrCallingAnExternalProvider() throws Exception {
+        User user = createUser();
+        when(jwtTokenProvider.validateToken("synthetic-legacy-token")).thenReturn(true);
+        when(jwtTokenProvider.getJti("synthetic-legacy-token")).thenReturn("synthetic-legacy-jti");
+        when(jwtTokenProvider.getAuthentication("synthetic-legacy-token")).thenReturn(
+                new UsernamePasswordAuthenticationToken(user.getId().toString(), null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/chat/sessions"))
+                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer synthetic-legacy-token")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{}" )).build();
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(503, response.statusCode());
+        assertEquals(0, conversations.findAll().stream().filter(value -> value.getUser().getId().equals(user.getId())).count());
+    }
+
+    @Test
+    void scheduledDatabaseLockAllowsOnlyOneReplicaAtATimeAndReleasesOnCompletion() throws Exception {
+        CountDownLatch acquired = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> holder = executor.submit(() -> scheduledTaskCoordinator.runIfOwner("integration-lock", () -> {
+                acquired.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("test lock timed out");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("test lock interrupted", interrupted);
+                }
+            }));
+            assertTrue(acquired.await(2, TimeUnit.SECONDS));
+            assertFalse(scheduledTaskCoordinator.runIfOwner("integration-lock", () -> fail("second replica must not run")));
+            release.countDown();
+            assertTrue(holder.get(2, TimeUnit.SECONDS));
+            assertTrue(scheduledTaskCoordinator.runIfOwner("integration-lock", () -> { }));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
