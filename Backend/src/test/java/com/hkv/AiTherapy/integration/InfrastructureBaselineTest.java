@@ -41,6 +41,10 @@ class InfrastructureBaselineTest {
         ReflectionTestUtils.setField(encryption, "masterKeyBase64",
                 Base64.getEncoder().encodeToString(new byte[32]));
         encryption.init();
+        EncryptionService restoreReader = new EncryptionService();
+        ReflectionTestUtils.setField(restoreReader, "masterKeyBase64",
+                Base64.getEncoder().encodeToString(new byte[32]));
+        restoreReader.init();
 
         UUID userId = UUID.randomUUID();
         String text = "Synthetic private note 🌱";
@@ -64,7 +68,7 @@ class InfrastructureBaselineTest {
                     assertTrue(result.next());
                     String stored = result.getString(1);
                     assertNotEquals(text, stored);
-                    assertEquals(text, encryption.decrypt(stored));
+                    assertEquals(text, restoreReader.decrypt(stored));
                 }
             }
             String longTitle = "Private milestone 🌱 ".repeat(30);
@@ -81,7 +85,7 @@ class InfrastructureBaselineTest {
                 select.setObject(1, userId);
                 try (var result = select.executeQuery()) {
                     assertTrue(result.next());
-                    assertEquals(longTitle, encryption.decrypt(result.getString(1)));
+                    assertEquals(longTitle, restoreReader.decrypt(result.getString(1)));
                 }
             }
         }
