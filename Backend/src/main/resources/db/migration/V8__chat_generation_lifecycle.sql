@@ -17,7 +17,7 @@ CREATE TABLE chat_turns (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     idempotency_key VARCHAR(100) NOT NULL,
-    input_hash CHAR(64) NOT NULL,
+    input_hash VARCHAR(64) NOT NULL,
     purpose VARCHAR(20) NOT NULL CHECK (purpose IN ('GREETING', 'CHAT')),
     user_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
     assistant_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
