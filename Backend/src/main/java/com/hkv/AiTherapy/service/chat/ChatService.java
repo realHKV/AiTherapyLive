@@ -13,6 +13,7 @@ import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.payment.EntitlementService;
+import com.hkv.AiTherapy.service.job.ExtractionJobQueue;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,7 @@ public class ChatService {
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher eventPublisher;
     private final EntitlementService entitlementService;
+    private final ExtractionJobQueue extractionJobQueue;
 
     public ChatService(ConversationRepository conversationRepository,
                        MessageRepository messageRepository,
@@ -50,7 +52,8 @@ public class ChatService {
                        AIGateway aiGateway,
                        PromptBuilder promptBuilder,
                        ApplicationEventPublisher eventPublisher,
-                       EntitlementService entitlementService) {
+                       EntitlementService entitlementService,
+                       ExtractionJobQueue extractionJobQueue) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -59,6 +62,7 @@ public class ChatService {
         this.promptBuilder = promptBuilder;
         this.eventPublisher = eventPublisher;
         this.entitlementService = entitlementService;
+        this.extractionJobQueue = extractionJobQueue;
     }
 
     @Transactional
@@ -279,7 +283,7 @@ public class ChatService {
 
     @Transactional
     public void endSession(UUID userId, UUID conversationId) {
-        userRepository.findByIdForUpdate(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .filter(User::isActive)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
         Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
@@ -294,6 +298,8 @@ public class ChatService {
         conversation.setStatus("completed");
         conversation.setEndedAt(Instant.now());
         conversationRepository.save(conversation);
+        if (conversation.isContextEligible())
+            extractionJobQueue.enqueue(userId, conversationId, user.getContextRevision());
 
         java.util.Optional<TherapyProfile> profileOpt = therapyProfileRepository.findByUserId(userId);
         if (profileOpt.isPresent()) {
@@ -302,8 +308,7 @@ public class ChatService {
             therapyProfileRepository.save(profile);
         }
 
-        // Instantly trigger the background summarization job
-        eventPublisher.publishEvent(new com.hkv.AiTherapy.service.job.SessionEndedEvent(conversationId));
+        // This event only cancels any in-flight chat provider work after the transaction commits.
         eventPublisher.publishEvent(new ConversationEndedEvent(userId, conversationId));
     }
 

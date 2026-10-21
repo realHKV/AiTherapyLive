@@ -129,6 +129,13 @@ ai:
     total-timeout: ${AI_CHAT_TOTAL_TIMEOUT:60s}
     max-input-tokens: ${AI_CHAT_MAX_INPUT_TOKENS:6000}
     max-output-tokens: ${AI_CHAT_MAX_OUTPUT_TOKENS:1500}
+  extraction:
+    worker-enabled: ${AI_EXTRACTION_WORKER_ENABLED:false}
+    poll-interval-ms: ${AI_EXTRACTION_POLL_INTERVAL_MS:5000}
+    policy-version: ${AI_EXTRACTION_POLICY_VERSION:session-extraction-v1}
+    max-attempts: ${AI_EXTRACTION_MAX_ATTEMPTS:5}
+    lease: ${AI_EXTRACTION_LEASE:PT2M}
+    max-output-tokens: ${AI_EXTRACTION_MAX_OUTPUT_TOKENS:1800}
   provider:
     base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
     api-key: ${AI_API_KEY:}

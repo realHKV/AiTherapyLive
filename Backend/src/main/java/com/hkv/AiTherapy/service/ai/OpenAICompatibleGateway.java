@@ -68,37 +68,6 @@ public class OpenAICompatibleGateway implements AIGateway {
         return executeRequest(request, isPro);
     }
 
-    @Override
-    public String summarizeSession(String sessionTranscript) {
-        String systemPrompt = "Analyze the following therapy session transcript and extract structured data.\n" +
-                "Return ONLY a valid JSON object with these keys:\n" +
-                "1. \"summary\": A 2-3 sentence summary of the session.\n" +
-                "2. \"profileUpdates\": An object with ONLY fields the user explicitly stated about themselves. " +
-                "Possible fields: \"name\" (string), \"age\" (string like \"25\" or \"25-30\"), \"gender\" (string). " +
-                "Omit any field the user did NOT explicitly mention. Use null for unmentioned fields.\n" +
-                "3. \"traits\": Array of {\"key\": string, \"confidence\": 0.0-1.0}. Top 3 personality traits observed.\n" +
-                "4. \"memories\": Array of {\"type\": \"fact\"|\"event\"|\"preference\"|\"goal\", \"title\": string, " +
-                "\"detail\": string, \"importance\": 1-10}. Key facts, events, or feelings the user disclosed. " +
-                "IMPORTANT: Personal facts like name, age, occupation, relationships MUST be captured as memories.\n" +
-                "Example: {\"summary\":\"...\",\"profileUpdates\":{\"name\":\"Alex\",\"age\":\"25\",\"gender\":null}," +
-                "\"traits\":[{\"key\":\"Reflective\",\"confidence\":0.8}]," +
-                "\"memories\":[{\"type\":\"fact\",\"title\":\"User's age\",\"detail\":\"User is 25 years old\",\"importance\":8}]}";
-
-        List<AiMessage> messages = List.of(
-                AiMessage.system(systemPrompt),
-                AiMessage.user(sessionTranscript)
-        );
-
-        AiRequest request = AiRequest.builder()
-                .model(defaultModel)
-                .messages(messages)
-                .temperature(0.2) // Low temp for analytical extraction
-                .maxTokens(2000)
-                .build();
-
-        return executeRequest(request, false); // Summarization is done with the free-tier default analytical model limit
-    }
-
     private static final int MAX_RETRIES = 3;
     private static final long BASE_BACKOFF_MS = 1000; // 1 second
 

@@ -15,6 +15,8 @@ import java.util.UUID;
 @Repository
 public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, UUID> {
 
+    long countByUserIdAndStatus(UUID userId, String status);
+
     /**
      * Returns the top N memories for a user, ordered by importance (highest first).
      * Used by PromptBuilder to inject context into the AI system prompt.

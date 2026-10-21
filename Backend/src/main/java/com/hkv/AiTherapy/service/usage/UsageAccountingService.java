@@ -111,6 +111,16 @@ public class UsageAccountingService {
         settleBuckets(request, day, settled);
     }
 
+    /** Releases admission for work abandoned before a provider attempt begins. */
+    @Transactional
+    public void releaseReservation(UUID requestId, String failureCode) {
+        AiRequest request = locked(requestId);
+        if (!"RESERVED".equals(request.getStatus()) || request.getProviderAttempts() != 0) return;
+        releaseBuckets(request, LocalDate.ofInstant(request.getCreatedAt(), ZoneOffset.UTC));
+        request.setStatus("EXPIRED"); request.setFailureCode(failureCode);
+        request.setLeaseExpiresAt(null); request.setCompletedAt(clock.instant());
+    }
+
     @Transactional
     public int reconcileExpiredReservations() {
         int reconciled = 0;

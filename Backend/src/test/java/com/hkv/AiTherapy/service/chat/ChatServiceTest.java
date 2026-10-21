@@ -10,7 +10,7 @@ import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
-import com.hkv.AiTherapy.service.job.SessionEndedEvent;
+import com.hkv.AiTherapy.service.job.ExtractionJobQueue;
 import com.hkv.AiTherapy.service.payment.EntitlementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +51,8 @@ class ChatServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private EntitlementService entitlementService;
+    @Mock
+    private ExtractionJobQueue extractionJobQueue;
 
     @InjectMocks
     private ChatService chatService;
@@ -97,11 +99,8 @@ class ChatServiceTest {
         verify(conversationRepository).save(testConversation);
         verify(therapyProfileRepository).save(testProfile);
 
-        ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(eventPublisher, times(2)).publishEvent(eventCaptor.capture());
-        SessionEndedEvent firedEvent = eventCaptor.getAllValues().stream()
-                .filter(SessionEndedEvent.class::isInstance).map(SessionEndedEvent.class::cast).findFirst().orElseThrow();
-        assertEquals(conversationId, firedEvent.conversationId());
+        verify(extractionJobQueue).enqueue(userId, conversationId, testUser.getContextRevision());
+        verify(eventPublisher).publishEvent(any(ConversationEndedEvent.class));
     }
 
     @Test

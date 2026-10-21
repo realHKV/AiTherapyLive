@@ -19,7 +19,6 @@ import com.hkv.AiTherapy.service.auth.OAuthTicketService;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
 import com.hkv.AiTherapy.service.chat.ChatStreamHandle;
-import com.hkv.AiTherapy.service.job.SummarizationJob;
 import com.hkv.AiTherapy.service.memory.MemoryService;
 import com.hkv.AiTherapy.service.usage.RedisAdmissionService;
 import com.hkv.AiTherapy.service.usage.UsageAccountingService;
@@ -72,7 +71,6 @@ class SecurityHttpTest {
     @MockitoBean private AccountService accountService;
     @MockitoBean private ChatService chatService;
     @MockitoBean private ChatTurnWorkflow chatTurnWorkflow;
-    @MockitoBean private SummarizationJob summarizationJob;
     @MockitoBean private ConversationRepository conversationRepository;
     @MockitoBean private ProfileService profileService;
     @MockitoBean private MemoryService memoryService;
