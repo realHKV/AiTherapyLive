@@ -216,6 +216,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 **Read:** pipeline/runbooks, backend acceptance report, actual AWS settings, and AWS_MIGRATION cutover/rollback rules.
 
+**Current status:** in progress. Neon verified-TLS read-only login and Upstash TLS/auth/PING passed; the user confirmed an AWS Free plan with available credit. No AWS resources or staging service exist yet. The remaining live acceptance matrix and account setup are tracked in [Step 16 handoff](handoffs/STEP-16.md).
+
 **Execute:** deploy the tested backend image to staging, run the one-off migrator, validate health/HTTPS/CORS and actual Google redirects, and run synthetic FREE/PRO chat, signed payment, quota, SSE, and job scenarios. Rehearse backup restoration with compatible keys and migration history. Replace tasks during streams/jobs; test fresh registry pulls and previous-revision rollback.
 
 **Exit gate:** real AWS integration evidence, alarms, cost measurements, model access, restore, and rollback checks pass. Update rate/spend configuration from measured costs. Keep production traffic unchanged. A public health response alone is not sufficient evidence.
