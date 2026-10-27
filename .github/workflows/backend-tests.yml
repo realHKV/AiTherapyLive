@@ -36,7 +36,7 @@ jobs:
           terraform validate
           terraform test
       - name: Check deployment script syntax
-        run: bash -n Backend/deploy/demo-release.sh Backend/deploy/demo-update.sh Backend/deploy/demo-smoke.sh
+        run: bash -n Backend/deploy/demo-release.sh Backend/deploy/demo-update.sh Backend/deploy/demo-smoke.sh Backend/deploy/private-ec2-start.sh
 
   test:
     runs-on: ubuntu-latest
