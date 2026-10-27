@@ -16,6 +16,8 @@ On 2026-10-27, a verified-TLS read-only audit found the original Neon database h
 
 The protected backend release workflow subsequently passed for commit `a3059114be72251b19765ffd3e66d660f85bbc6d` and published [a Docker Hub digest](releases/STEP-16-private-image.json). The repository is private, and a credential-free manifest probe from EC2 failed; the running host still uses the earlier local build. A read-only registry credential or an AWS ECR mirror is needed to pull the released digest. Do not copy the existing Docker Hub push token from GitHub to EC2.
 
+The private startup script now restores the prior image and runtime settings if a candidate does not reach readiness. A deliberately invalid candidate revealed and fixed a Docker restart-loop detection gap. On the repeated rehearsal, the candidate failed, the previous image returned to readiness `UP`, and the root-only runtime file remained `0600`. This proves container-level rollback for this synthetic failure; it does not reverse database migrations or replace a Neon restore drill.
+
 ## Why EC2
 
 The existing Java container is x86_64 and needs a warm process plus background jobs. A `t3.small` has 2 vCPUs and 2 GiB RAM and is eligible for the post-2025 AWS Free account plan. That plan uses promotional credits for EC2 usage; “Free tier eligible” does **not** mean indefinite zero-cost compute. The account showed $140 credit remaining on 2026-10-27; recheck the balance before deployment.
