@@ -1,12 +1,18 @@
 # Sydney staging: one EC2 instance, no load balancer — 2026-10-27
 
-Status: **preferred lower-cost design; HTTPS and OAuth integration remain acceptance gates**. No AWS resources created. Account `492613852824`, Region `ap-southeast-2`, Netlify frontend. Synthetic staging data only.
+Status: **SSM-only development host prepared; browser HTTPS and OAuth integration remain later acceptance gates**. No AWS resources created. Account `492613852824`, Region `ap-southeast-2`, Netlify frontend. Synthetic staging data only.
+
+## First deployment: private development access
+
+The first [EC2 stack](../infra/ec2-demo-instance.yaml) has no inbound security-group rules, no Elastic IP, and no load balancer. It uses a public subnet only for outbound package, database, Redis, and AWS API access; the automatically assigned public IPv4 changes after a stop. Administration and local API testing use Systems Manager Session Manager or port forwarding. This follows the request to defer HTTPS and avoids exposing an HTTP API to browsers. The live Netlify site cannot call this private staging host; a trusted HTTPS ingress and a workable Google callback are required before frontend integration.
+
+At the verified Sydney rates, 17 hours/day of `t3.small` compute, 16 GiB gp3, and a public IPv4 only while running give an illustrative **$17.77/month gross** before credits and usage. The AWS Console showed $140 credits remaining on 2026-10-27, and the existing budget alerts at $15/month. The stack was validated but not executed: automatic approval review rejected creating billed EC2 and persistent IAM resources without a clearer user authorization. A former unexecuted change set that included public HTTPS ingress and an Elastic IP was deleted. Review and approve this narrower SSM-only cost and resource scope before apply.
 
 ## Why EC2
 
-The existing Java container is x86_64 and needs a warm process plus background jobs. A `t3.small` has 2 vCPUs and 2 GiB RAM and is eligible for the post-2025 AWS Free account plan. That plan uses promotional credits for EC2 usage; “Free tier eligible” does **not** mean indefinite zero-cost compute. The account had $100 credit remaining when last verified on 2026-10-22; recheck the current balance before deployment.
+The existing Java container is x86_64 and needs a warm process plus background jobs. A `t3.small` has 2 vCPUs and 2 GiB RAM and is eligible for the post-2025 AWS Free account plan. That plan uses promotional credits for EC2 usage; “Free tier eligible” does **not** mean indefinite zero-cost compute. The account showed $140 credit remaining on 2026-10-27; recheck the balance before deployment.
 
-One public EC2 instance can run the backend with an IAM instance profile for Bedrock and access to the existing Neon database and Upstash Redis. Use a free-tier-eligible AMI, 16 GiB gp3 EBS, an Elastic IP for a stable address, T3 CPU credit mode `standard`, and AWS Systems Manager Session Manager for administration. Do not expose SSH. Keep secrets in scoped AWS Secrets Manager references or standard SSM SecureString parameters; choose the latter for this small demo where automatic rotation is not needed, and verify IAM read access. Do not put values in user data, Git, or Terraform state. Run the one-off Flyway migrator first, then set `SPRING_FLYWAY_ENABLED=false` for the server.
+One public-subnet EC2 instance can run the backend with an IAM instance profile for Bedrock and access to the existing Neon database and Upstash Redis. Use a free-tier-eligible AMI, 16 GiB gp3 EBS, T3 CPU credit mode `standard`, and AWS Systems Manager Session Manager for administration. Add an Elastic IP only with the later HTTPS ingress phase. Do not expose SSH. Keep secrets in scoped AWS Secrets Manager references or standard SSM SecureString parameters; choose the latter for this small demo where automatic rotation is not needed, and verify IAM read access. Do not put values in user data, Git, or Terraform state. Run the one-off Flyway migrator first, then set `SPRING_FLYWAY_ENABLED=false` for the server.
 
 ## HTTPS and OAuth
 
@@ -22,7 +28,7 @@ The requested window is **07:00–00:00 Asia/Kolkata every day**. [The schedule 
 
 There is no single switch that pauses every AWS service. Bedrock on-demand has no idle model charge; calls during the active window incur token charges, including background extraction or summaries. The EBS disk and reserved public IPv4 keep their charges while EC2 is stopped. Secrets Manager, logs, snapshots, and data transfer can also incur usage charges. An AWS Budget is an alert, not a hard spending cap.
 
-## Gross cost, before credits and usage
+## Later public HTTPS phase: gross cost, before credits and usage
 
 For 730 hours in Sydney, with an **illustrative** `t3.small` rate of $0.0264/hour, 16 GiB gp3 at $0.096/GiB-month, and one public IPv4 at $0.005/hour:
 

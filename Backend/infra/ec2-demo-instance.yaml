@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: One Sydney demo EC2 host for Session Manager development; no inbound Internet access or application secrets in the stack.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    must:
+      - Deploy only to the AiTherapy Sydney staging account.
+      - Keep secret values out of parameters, user data, and stack outputs.
+    ref:
+      - at: Backend/docs/STAGING_SYDNEY_EC2_OPTION.md
+        has: cost, HTTPS, OAuth, and daily schedule constraints
+        scope: project
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing Sydney VPC.
+  PublicSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet in the selected VPC for outbound access; its assigned IPv4 changes after stops.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Public SSM parameter for the current Amazon Linux 2023 x86_64 AMI.
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Gives the host Session Manager access and narrowly scoped runtime permissions without stored AWS keys.
+        must:
+          - Allow secret reads only under the demo SSM parameter path.
+          - Restrict model invocation to Nova 2 Lite and its global inference profile.
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: DemoRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/aitherapy/demo/*
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/global.amazon.nova-2-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Allows outbound dependencies while leaving every inbound port closed for SSM-only development.
+        must:
+          - Do not add public ingress before the HTTPS and OAuth design is approved.
+          - Never expose port 8080 or SSH to the Internet.
+    Properties:
+      GroupDescription: AiTherapy demo SSM-only development host
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Project
+          Value: AiTherapy
+        - Key: Environment
+          Value: demo
+  DemoInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Runs the reviewed x86_64 backend image during the daily demo window at the lowest planned instance size.
+        must:
+          - Use T3 standard credits to avoid surplus charges.
+          - Require IMDSv2; hop limit two permits container access to the instance role.
+          - Keep the root disk encrypted and avoid SSH keys and plaintext secrets.
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t3.small
+      CreditSpecification:
+        CPUCredits: standard
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref PublicSubnetId
+      SecurityGroupIds:
+        - !Ref HostSecurityGroup
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 2
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 16
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-backend
+        - Key: Project
+          Value: AiTherapy
+        - Key: Environment
+          Value: demo
+Outputs:
+  InstanceId:
+    Description: Target for the daily schedule and Session Manager.
+    Value: !Ref DemoInstance
+  SecurityGroupId:
+    Description: Dedicated demo ingress security group.
+    Value: !Ref HostSecurityGroup
