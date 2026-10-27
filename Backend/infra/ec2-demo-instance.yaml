@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: One Sydney demo EC2 host for Session Manager development; no inbound Internet access or application secrets in the stack.
+Description: One Sydney demo EC2 host, private by default, with an optional HTTPS-only public phase.
 Metadata:
   AWSToolsMetrics:
     AWSAgentToolkit: aws-cloudformation@3
@@ -22,6 +22,13 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
     Description: Public SSM parameter for the current Amazon Linux 2023 x86_64 AMI.
+  EnablePublicHttps:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['false', 'true']
+    Description: Explicitly opt in to a stable public IPv4 and ports 80/443 for trusted IP HTTPS. Keep false for SSM-only development.
+Conditions:
+  PublicHttpsEnabled: !Equals [!Ref EnablePublicHttps, 'true']
 Resources:
   InstanceRole:
     Type: AWS::IAM::Role
@@ -70,7 +77,7 @@ Resources:
       com.aws.cloudformation.Context:
         why: Allows outbound dependencies while leaving every inbound port closed for SSM-only development.
         must:
-          - Do not add public ingress before the HTTPS and OAuth design is approved.
+          - Public ingress is opt-in and limited to ACME HTTP validation and HTTPS.
           - Never expose port 8080 or SSH to the Internet.
     Properties:
       GroupDescription: AiTherapy demo SSM-only development host
@@ -122,6 +129,63 @@ Resources:
           Value: AiTherapy
         - Key: Environment
           Value: demo
+  PublicHttpsAddress:
+    Type: AWS::EC2::EIP
+    Condition: PublicHttpsEnabled
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Gives the short-lived IP certificate and browser API a stable address across nightly stops.
+        must:
+          - Allocate only after approval of public HTTPS and ongoing IPv4 charges.
+          - Associate only with the existing demo instance.
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Project
+          Value: AiTherapy
+        - Key: Environment
+          Value: demo
+  PublicHttpsAddressAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: PublicHttpsEnabled
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Keeps the approved demo instance at the certificate's stable IPv4 address.
+        must:
+          - Do not replace the EC2 instance or introduce a load balancer.
+    Properties:
+      AllocationId: !GetAtt PublicHttpsAddress.AllocationId
+      InstanceId: !Ref DemoInstance
+  AcmeHttpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: PublicHttpsEnabled
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Lets the certificate authority validate the IP certificate through HTTP-01.
+        must:
+          - Serve only ACME challenges on HTTP and redirect other paths to HTTPS.
+    Properties:
+      GroupId: !Ref HostSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      Description: ACME HTTP-01 challenge and HTTPS redirect only
+  PublicHttpsIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: PublicHttpsEnabled
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Accepts trusted browser TLS at nginx while Java remains on loopback.
+        must:
+          - Never expose port 8080 or SSH.
+    Properties:
+      GroupId: !Ref HostSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      Description: Trusted IP certificate TLS reverse proxy
 Outputs:
   InstanceId:
     Description: Target for the daily schedule and Session Manager.
@@ -129,3 +193,7 @@ Outputs:
   SecurityGroupId:
     Description: Dedicated demo ingress security group.
     Value: !Ref HostSecurityGroup
+  PublicHttpsIp:
+    Condition: PublicHttpsEnabled
+    Description: Elastic IP for the trusted HTTPS API after certificate issuance.
+    Value: !Ref PublicHttpsAddress

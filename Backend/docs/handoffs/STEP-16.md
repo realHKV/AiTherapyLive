@@ -61,4 +61,4 @@
 | Recovery | Create a synthetic encrypted fixture and Flyway history, rehearse Neon branch/restore with the same encryption key, then deploy and restore a compatible prior image/configuration. Image rollback does not reverse schema migrations. |
 | Operations and cost | Check log retention, alarm delivery, EC2/EBS/IPv4/CloudFront and Bedrock spend, credit drawdown, and resulting concurrency/resource settings. |
 
-Do not route real users or move Netlify's API base URL until the matrix passes. The frontend's known stream URL mismatch is scheduled for Steps 17–19.
+Do not route real users or move Netlify's API base URL until the matrix passes. The frontend stream URL currently matches the backend `POST /chat/sessions/{id}/stream` route; the remaining streaming gate is an end-to-end browser test through the future HTTPS ingress.
