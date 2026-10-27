@@ -7,10 +7,40 @@ parameter_name="/aitherapy/demo/runtime-env"
 runtime_dir="/etc/aitherapy"
 runtime_file="$runtime_dir/runtime.env"
 parameter_file="$(mktemp)"
-trap 'rm -f "$parameter_file"' EXIT
+previous_file=""
+trap 'rm -f "$parameter_file"; if [ -n "$previous_file" ]; then rm -f "$previous_file"; fi' EXIT
+
+start_container() {
+  local selected_image="$1"
+  docker run -d --name aitherapy-demo-app --network host \
+    --env-file "$runtime_file" --restart unless-stopped \
+    --memory 1300m --memory-swap 1800m \
+    --log-opt max-size=10m --log-opt max-file=3 \
+    "$selected_image" serve >/dev/null
+}
+
+wait_for_readiness() {
+  for attempt in {1..90}; do
+    if curl --fail --silent http://127.0.0.1:8080/api/v1/actuator/health/readiness \
+        | grep -q '"status":"UP"'; then
+      return 0
+    fi
+    if [ "$(docker inspect -f '{{.State.Running}}' aitherapy-demo-app)" != true ]; then
+      return 1
+    fi
+    sleep 2
+  done
+  return 1
+}
 
 docker image inspect "$image" >/dev/null
 install -d -m 0700 "$runtime_dir"
+previous_image="$(docker inspect -f '{{.Image}}' aitherapy-demo-app 2>/dev/null || true)"
+if [ -n "$previous_image" ] && [ -f "$runtime_file" ]; then
+  previous_file="$(mktemp "$runtime_dir/runtime.previous.XXXXXX")"
+  cp "$runtime_file" "$previous_file"
+  chmod 0600 "$previous_file"
+fi
 chmod 0600 "$parameter_file"
 aws ssm get-parameter --region ap-southeast-2 --name "$parameter_name" \
   --with-decryption --output json > "$parameter_file"
@@ -54,25 +84,23 @@ finally:
         os.unlink(temporary)
 PY
 
-docker rm -f aitherapy-demo-app >/dev/null 2>&1 || true
-docker run -d --name aitherapy-demo-app --network host \
-  --env-file "$runtime_file" --restart unless-stopped \
-  --memory 1300m --memory-swap 1800m \
-  --log-opt max-size=10m --log-opt max-file=3 \
-  "$image" serve >/dev/null
-
-for attempt in {1..90}; do
-  if curl --fail --silent http://127.0.0.1:8080/api/v1/actuator/health/readiness \
-      | grep -q '"status":"UP"'; then
-    echo "Private backend readiness UP"
-    exit 0
-  fi
-  if [ "$(docker inspect -f '{{.State.Running}}' aitherapy-demo-app)" != true ]; then
-    echo "Private backend exited before readiness" >&2
-    exit 1
-  fi
-  sleep 2
-done
+if [ -n "$previous_image" ]; then
+  docker rm -f aitherapy-demo-app >/dev/null
+fi
+if start_container "$image" && wait_for_readiness; then
+  echo "Private backend readiness UP"
+  exit 0
+fi
 
 echo "Private backend did not reach readiness" >&2
+docker rm -f aitherapy-demo-app >/dev/null 2>&1 || true
+if [ -n "$previous_image" ] && [ -n "$previous_file" ]; then
+  mv "$previous_file" "$runtime_file"
+  previous_file=""
+  if start_container "$previous_image" && wait_for_readiness; then
+    echo "Previous private backend restored and ready" >&2
+    exit 1
+  fi
+  echo "Previous private backend restoration failed" >&2
+fi
 exit 1
