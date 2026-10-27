@@ -25,7 +25,7 @@ wait_for_readiness() {
         | grep -q '"status":"UP"'; then
       return 0
     fi
-    if [ "$(docker inspect -f '{{.State.Running}}' aitherapy-demo-app)" != true ]; then
+    if [ "$(docker inspect -f '{{.State.Status}}' aitherapy-demo-app)" != running ]; then
       return 1
     fi
     sleep 2
