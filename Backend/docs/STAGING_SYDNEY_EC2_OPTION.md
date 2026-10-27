@@ -16,6 +16,8 @@ On 2026-10-27, a verified-TLS read-only audit found the original Neon database h
 
 The protected backend release workflow subsequently passed for commit `a3059114be72251b19765ffd3e66d660f85bbc6d` and published [a Docker Hub digest](releases/STEP-16-private-image.json). The repository is private, and a credential-free manifest probe from EC2 failed; the running host still uses the earlier local build. A read-only registry credential or an AWS ECR mirror is needed to pull the released digest. Do not copy the existing Docker Hub push token from GitHub to EC2.
 
+The user chose a separate Docker Hub token with `Repo Read-only` permission. They will save it directly as Sydney Standard SecureString `/aitherapy/demo/dockerhub-read-token`; the token must not be pasted into chat or Git. [The private pull script](../deploy/private-ec2-pull-and-start.sh) reads it through the scoped instance role, logs in with a temporary Docker config, pulls the exact recorded digest, deletes that temporary config, checks the `linux/amd64` platform, and starts the backend through the rollback-aware script. Do not run it until the parameter exists and the Docker ID is confirmed.
+
 The private startup script now restores the prior image and runtime settings if a candidate does not reach readiness. A deliberately invalid candidate revealed and fixed a Docker restart-loop detection gap. On the repeated rehearsal, the candidate failed, the previous image returned to readiness `UP`, and the root-only runtime file remained `0600`. This proves container-level rollback for this synthetic failure; it does not reverse database migrations or replace a Neon restore drill.
 
 ## Why EC2
