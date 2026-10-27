@@ -158,13 +158,13 @@ export default function AboutYou() {
         ageRange: form.ageRange,
         gender: form.gender,
         country: form.country,
-        topics_of_concern: JSON.stringify(form.concerns),
-        enjoyments: JSON.stringify(form.interests),
+        topicsOfConcern: form.concerns,
+        interests: form.interests,
         communicationStyle: form.communicationStyle || 'gentle',
         additionalNote: form.additionalNote,
       });
       navigate('/choose-therapist');
-    } catch (err) {
+    } catch {
       setError('Failed to save your profile. Please try again.');
     } finally {
       setSaving(false);
@@ -356,9 +356,9 @@ export default function AboutYou() {
             <div className="mt-10 flex gap-4 items-start p-5 bg-surface-container-low rounded-xl border-l-4 border-tertiary">
               <span className="text-tertiary text-xl mt-0.5">🛡️</span>
               <div>
-                <h4 className="font-bold text-on-surface tracking-tight text-sm">Your data is safe with us.</h4>
+                <h4 className="font-bold text-on-surface tracking-tight text-sm">How your information is used</h4>
                 <p className="text-xs text-on-surface-variant leading-relaxed mt-1">
-                  AiTherapy uses end-to-end encryption. Your therapist only sees what you explicitly choose to share.
+                  The app stores sensitive text with application-level encryption and sends relevant content to its AI provider when you chat.
                 </p>
               </div>
             </div>

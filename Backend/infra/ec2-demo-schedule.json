@@ -1,0 +1,133 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Stop the AiTherapy Sydney demo EC2 instance at midnight India time and start it at 07:00 India time each day.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    },
+    "com.aws.cloudformation.Context": {
+      "must": [
+        "Deploy only after the Sydney demo EC2 instance exists.",
+        "The schedule controls EC2 compute only; its EBS volume and public IPv4 remain allocated."
+      ],
+      "ref": [
+        {
+          "at": "Backend/docs/STAGING_SYDNEY_EC2_OPTION.md",
+          "has": "staging architecture, schedule, and cost assumptions",
+          "scope": "project"
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "InstanceId": {
+      "Type": "String",
+      "Description": "Existing EBS-backed demo instance in ap-southeast-2.",
+      "AllowedPattern": "^i-[0-9a-f]{8}([0-9a-f]{9})?$",
+      "ConstraintDescription": "Enter an EC2 instance ID such as i-0123456789abcdef0."
+    }
+  },
+  "Resources": {
+    "SchedulerExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Let only schedules in this account's default group operate the single demo instance.",
+          "must": [
+            "Trust must be limited to this account and the default schedule group.",
+            "EC2 actions must be limited to the supplied instance ARN."
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {"Service": "scheduler.amazonaws.com"},
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {"Ref": "AWS::AccountId"},
+                  "aws:SourceArn": {"Fn::Sub": "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule-group/default"}
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "OperateDemoInstance",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+                  "Resource": {"Fn::Sub": "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}"}
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StopAtMidnight": {
+      "Type": "AWS::Scheduler::Schedule",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Stop billed EC2 compute outside the chosen demo window.",
+          "must": ["Use Asia/Kolkata time zone; keep the target instance identical to the role policy."]
+        }
+      },
+      "Properties": {
+        "Description": "Stop AiTherapy demo instance at 00:00 India time.",
+        "GroupName": "default",
+        "ScheduleExpression": "cron(0 0 * * ? *)",
+        "ScheduleExpressionTimezone": "Asia/Kolkata",
+        "FlexibleTimeWindow": {"Mode": "OFF"},
+        "State": "ENABLED",
+        "Target": {
+          "Arn": "arn:aws:scheduler:::aws-sdk:ec2:stopInstances",
+          "RoleArn": {"Fn::GetAtt": ["SchedulerExecutionRole", "Arn"]},
+          "Input": {"Fn::Sub": "{\"InstanceIds\":[\"${InstanceId}\"]}"},
+          "RetryPolicy": {"MaximumEventAgeInSeconds": 900, "MaximumRetryAttempts": 3}
+        }
+      }
+    },
+    "StartAtSeven": {
+      "Type": "AWS::Scheduler::Schedule",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Restore the demo backend for daytime visitors while preserving its disk and stable IP.",
+          "must": ["Use Asia/Kolkata time zone; keep the target instance identical to the role policy."]
+        }
+      },
+      "Properties": {
+        "Description": "Start AiTherapy demo instance at 07:00 India time.",
+        "GroupName": "default",
+        "ScheduleExpression": "cron(0 7 * * ? *)",
+        "ScheduleExpressionTimezone": "Asia/Kolkata",
+        "FlexibleTimeWindow": {"Mode": "OFF"},
+        "State": "ENABLED",
+        "Target": {
+          "Arn": "arn:aws:scheduler:::aws-sdk:ec2:startInstances",
+          "RoleArn": {"Fn::GetAtt": ["SchedulerExecutionRole", "Arn"]},
+          "Input": {"Fn::Sub": "{\"InstanceIds\":[\"${InstanceId}\"]}"},
+          "RetryPolicy": {"MaximumEventAgeInSeconds": 900, "MaximumRetryAttempts": 3}
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "StopScheduleArn": {
+      "Description": "Daily stop schedule ARN.",
+      "Value": {"Fn::GetAtt": ["StopAtMidnight", "Arn"]}
+    },
+    "StartScheduleArn": {
+      "Description": "Daily start schedule ARN.",
+      "Value": {"Fn::GetAtt": ["StartAtSeven", "Arn"]}
+    }
+  }
+}

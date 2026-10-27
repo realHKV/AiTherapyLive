@@ -4,7 +4,7 @@ This is the frozen Step 13 backend contract. [openapi.yaml](openapi.yaml) record
 
 ## Compatibility rule
 
-Keep existing `/api/v1` methods, session/message success envelopes, and field names compatible until the frontend is migrated in Phase F. The legacy SSE wire format is disabled and returns 503; v2 stream semantics require `X-Chat-Stream-Version: 2`. Do not silently change request or success shapes. The current frontend unwraps successful `ApiResponse.data`; its `sendMessage` method unwraps twice, and its stream fallback omits `/api/v1`. The fixed Razorpay link cannot satisfy the server-owned purchase flow. These are Phase F client changes, not reasons to weaken backend authorization.
+Keep existing `/api/v1` methods, session/message success envelopes, and field names compatible until the frontend migration passes browser acceptance. The legacy SSE wire format is disabled and returns 503; v2 stream semantics require `X-Chat-Stream-Version: 2`. The local Phase F frontend now uses the `/api/v1` stream URL, unwraps the success envelope once, and creates server-owned purchases. These changes have not passed live browser acceptance; do not weaken backend authorization for compatibility.
 
 ## Implemented HTTP behavior
 
@@ -16,9 +16,9 @@ Keep existing `/api/v1` methods, session/message success envelopes, and field na
 
 ## Profile and onboarding implementation (Step 06)
 
-Canonical new fields are `personaId`, `onboardingComplete`, `gender`, `country`, `interests`, and `additionalNote`, alongside current fields. `topicsOfConcern` and `interests` are arrays of strings, never JSON-encoded strings. `personaId` is a server-approved catalog ID; `communicationStyle` remains a separate preference. The frontend currently sends `aiPersona` for a therapist ID, `topics_of_concern` and `enjoyments` as JSON strings. Step 06 must accept those legacy aliases during transition, map them to one stored meaning, and return the current `aiPersona` projection until Phase F. The canonical response may add `personaId` and explicit `onboardingComplete`; completion is computed from validated onboarding state, never inferred from a nonempty default persona.
+Canonical fields include `personaId`, `onboardingComplete`, `gender`, `country`, `interests`, and `additionalNote`. `topicsOfConcern` and `interests` are arrays of strings, never JSON-encoded strings. `personaId` is a server-approved catalog ID; `communicationStyle` remains a separate preference. The backend still accepts the old `aiPersona`, `topics_of_concern`, and `enjoyments` aliases during rollout. The local Phase F frontend sends the canonical fields. Onboarding completion is computed from validated state, never inferred from a nonempty default persona.
 
-The service validates preferred name at most 100 Unicode code points, age range and communication style at most 50, each topic/interest at most 100 with at most 20 entries, and additional note at most 500. It trims surrounding whitespace. Empty arrays clear a list; omitted and null fields leave it unchanged; `clearFields` explicitly clears supported fields. The dedicated context reset also deletes profile, traits, and memories. Validation uses `VALIDATION_FAILED` with safe field details.
+The service validates preferred name at most 100 Unicode code points, age range and communication style at most 50, each topic/interest at most 100 with at most 20 entries, and additional note at most 500. It trims surrounding whitespace. Empty arrays clear a list; omitted and null fields leave it unchanged; `clearFields` explicitly clears supported fields. The dedicated context reset also deletes profile, traits, and memories. Validation uses `VALIDATION_FAILED` with safe field details. The local Phase F frontend sends canonical arrays and `personaId`; live browser validation remains pending.
 
 ## Memory lifecycle implementation (Step 06)
 
@@ -34,9 +34,9 @@ For 429, the atomic short-window filter returns `Retry-After` as nonnegative sec
 
 ## Auth and payment transition
 
-The existing OAuth redirect sends a token query parameter by default for the current frontend. With `OAUTH_TICKET_HANDOFF=true`, it sends a short-lived one-use `ticket`; `POST /auth/oauth/exchange` returns AuthResponse and `Cache-Control: no-store`. Phase F will adopt the ticket flow, then remove legacy redirect tokens after compatibility is verified. The `/auth/oauth/exchange` route is implemented; Google identity-provider and staging round-trip validation remain Step 16 cloud gates.
+The existing OAuth redirect sends a token query parameter by default. With `OAUTH_TICKET_HANDOFF=true`, it sends a short-lived one-use `ticket`; `POST /auth/oauth/exchange` returns AuthResponse and `Cache-Control: no-store`. The local Phase F frontend can exchange tickets and still accepts legacy redirects. Remove legacy redirect tokens only after the ticket flow passes staging browser validation. Google identity-provider and staging round-trip validation remain Step 16 cloud gates.
 
-The purchase response contains `purchaseId`, `orderId`, `keyId`, `amountPaise`, and `currency`. Clients start Razorpay Checkout with the returned order ID, then submit the payment ID; the backend independently verifies captured amount/currency/order/ownership. Webhook retries are allowed and duplicate captures must not grant multiple entitlements. The current backend implements the purchase binding, but database concurrency validation remains a Step 03 gate.
+The purchase response contains `purchaseId`, `orderId`, `keyId`, `amountPaise`, and `currency`. Clients start Razorpay Checkout with the returned order ID, then submit the payment ID; the backend independently verifies captured amount/currency/order/ownership. Webhook retries are allowed and duplicate captures must not grant multiple entitlements. The backend purchase binding and database concurrency validation passed in Step 13 CI; a live Razorpay test-mode round trip remains pending.
 
 ## What later steps must prove
 

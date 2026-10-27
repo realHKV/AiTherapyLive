@@ -3,7 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function OAuth2RedirectHandler() {
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('error')) return 'Google sign-in could not be completed.';
+    if (!params.has('ticket') && !params.has('token')) return 'No sign-in result was received.';
+    return null;
+  });
   const { googleLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -14,25 +19,23 @@ export default function OAuth2RedirectHandler() {
     hasRun.current = true;
 
     const params = new URLSearchParams(location.search);
+    const ticket = params.get('ticket');
     const token = params.get('token');
-    const authError = params.get('error');
     // Backend can optionally signal if this is a brand-new user
     const isNewUser = params.get('new_user') === 'true';
+    window.history.replaceState(window.history.state, '', location.pathname + location.hash);
+    if (params.has('error')) return;
 
-    if (token) {
-      googleLogin(token)
+    if (ticket || token) {
+      googleLogin({ ticket, token })
         .then(() => {
           // Check if user clicked "Upgrade to Pro" before logging in
           const pendingUpgrade = sessionStorage.getItem('pendingUpgrade');
-          if (pendingUpgrade) {
-            sessionStorage.removeItem('pendingUpgrade');
-            // Open payment link in new tab, then send user to chat
-            window.open('https://rzp.io/rzp/PhFTaZ2', '_blank', 'noopener,noreferrer');
-            navigate('/chat', { replace: true });
-            return;
-          }
+          if (pendingUpgrade) sessionStorage.removeItem('pendingUpgrade');
           if (isNewUser) {
             navigate('/about-you', { replace: true });
+          } else if (pendingUpgrade) {
+            navigate('/chat', { replace: true, state: { showUpgrade: true } });
           } else {
             navigate('/chat', { replace: true });
           }
@@ -40,12 +43,8 @@ export default function OAuth2RedirectHandler() {
         .catch((err) => {
           setError(err.message || 'Failed to complete Google Sign In');
         });
-    } else if (authError) {
-      setError(authError);
-    } else {
-      setError('No authentication token found.');
     }
-  }, []);
+  }, [googleLogin, location.pathname, location.search, location.hash, navigate]);
 
   if (error) {
     return (

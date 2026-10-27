@@ -21,6 +21,7 @@
 		<aws.sdk.version>2.55.13</aws.sdk.version>
 		<!-- Spring Boot 4.1.1 manages 11.0.24; 11.0.27 includes October 2026 security fixes. -->
 		<tomcat.version>11.0.27</tomcat.version>
+		<argLine></argLine>
 	</properties>
 
 	<dependencyManagement>
@@ -169,6 +170,23 @@
 
 	<build>
 		<plugins>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-dependency-plugin</artifactId>
+			<version>3.10.0</version>
+			<executions>
+				<execution>
+					<goals><goal>properties</goal></goals>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-surefire-plugin</artifactId>
+			<configuration>
+				<argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+			</configuration>
+		</plugin>
 		<plugin>
 			<groupId>org.apache.maven.plugins</groupId>
 			<artifactId>maven-jar-plugin</artifactId>

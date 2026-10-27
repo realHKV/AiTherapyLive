@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import Spline from '@splinetool/react-spline';
 import ThemeToggle from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useSubscription } from '../context/subscriptionStore';
+import { googleSignInUrl } from '../api/auth';
 
 // Inline SVG Google logo
 const GoogleIcon = () => (
@@ -19,8 +19,8 @@ const FEATURES = [
   {
     icon: '🧠',
     matIcon: 'psychology',
-    title: 'Powered by Gemini',
-    desc: 'Your sessions are powered by Google Gemini — state-of-the-art AI with deep empathetic understanding and nuanced conversation ability.',
+    title: 'AI-guided conversation',
+    desc: 'Reflect on your thoughts with an AI assistant. It is a support tool, not a licensed therapist.',
     accent: 'primary',
     accentHex: 'rgba(204, 151, 255, 0.12)',
     textColor: 'text-primary',
@@ -28,8 +28,8 @@ const FEATURES = [
   {
     icon: '🛡️',
     matIcon: 'verified_user',
-    title: 'End-to-End Encrypted',
-    desc: 'Every message, memory, and session summary is encrypted at rest. Your words are yours — no human ever reads your conversations.',
+    title: 'Sensitive fields encrypted',
+    desc: 'Message content and memory text are encrypted by the application before database storage. The service processes text to generate replies.',
     accent: 'secondary',
     accentHex: 'rgba(83, 221, 252, 0.12)',
     textColor: 'text-secondary',
@@ -37,8 +37,8 @@ const FEATURES = [
   {
     icon: '🔐',
     matIcon: 'lock',
-    title: 'Auth via Google Only',
-    desc: "We never store passwords. Authentication is handled by Google OAuth 2.0 — the same standard used by the world's most trusted apps.",
+    title: 'Google sign-in',
+    desc: 'Sign in with Google without creating a separate password for this app.',
     accent: 'primary',
     accentHex: 'rgba(204, 151, 255, 0.12)',
     textColor: 'text-primary',
@@ -47,31 +47,17 @@ const FEATURES = [
     icon: '🔒',
     matIcon: 'visibility_off',
     title: 'Zero Data Selling',
-    desc: 'We do not sell, rent, or share your data with advertisers or third parties. Your mental health information stays private — always.',
+    desc: 'We do not sell conversation content to advertisers. AI processing requires sending relevant text to the configured model provider.',
     accent: 'tertiary',
     accentHex: 'rgba(155, 255, 206, 0.12)',
     textColor: 'text-tertiary',
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    quote: "This felt more private than any office I've ever visited. I could finally be honest about the things I was too ashamed to say out loud.",
-    accent: 'border-primary',
-  },
-  {
-    quote: "The 3 AM support changed everything for me. Having a place to vent when the world is quiet is a literal lifesaver.",
-    accent: 'border-secondary',
-  },
-];
-
-const RAZORPAY_LINK = 'https://rzp.io/rzp/PhFTaZ2';
-
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { isPro } = useSubscription();
-  const [splineLoaded, setSplineLoaded] = useState(false);
+  const { isPro, startUpgrade, upgradeLoading, upgradeError } = useSubscription();
   const [activeSection, setActiveSection] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAlreadyPro, setShowAlreadyPro] = useState(false);
@@ -116,12 +102,12 @@ export default function Landing() {
   }, []);
 
   const handleGoogleSignIn = () => {
-    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'}/oauth2/authorization/google`;
+    window.location.href = googleSignInUrl();
   };
 
   const handleUpgradeToPro = () => {
     if (!isAuthenticated) {
-      // Store intent so OAuth2RedirectHandler can open payment after login
+      // Return to the upgrade panel after sign-in.
       sessionStorage.setItem('pendingUpgrade', 'true');
       handleGoogleSignIn();
       return;
@@ -131,7 +117,7 @@ export default function Landing() {
       setTimeout(() => { setShowAlreadyPro(false); navigate('/chat'); }, 2500);
       return;
     }
-    window.open(RAZORPAY_LINK, '_blank', 'noopener,noreferrer');
+    startUpgrade(() => navigate('/chat'));
   };
 
   return (
@@ -212,7 +198,6 @@ export default function Landing() {
               width="100%" 
               height="100%"
               title="Spline 3D ModelDesktop"
-              onLoad={() => setSplineLoaded(true)}
               allow="accelerometer 'none'; gyroscope 'none'; magnetometer 'none'"
               style={{ transform: 'translateZ(0)', willChange: 'transform' }}
               className="hidden md:block w-full h-full pointer-events-none transition-all duration-1000 invert hue-rotate-180 brightness-[1.2] contrast-[1.1] dark:invert-0 dark:hue-rotate-0 dark:brightness-100 dark:contrast-100"
@@ -276,19 +261,19 @@ export default function Landing() {
               </div>
 
               <p className="font-body text-lg md:text-xl text-on-surface leading-relaxed mb-6">
-                We are living through a <span className="text-primary font-semibold">quiet mental health crisis.</span> Modern life — relentless work pressure, digital burnout, social isolation, and the lingering weight of a post-pandemic world — has pushed anxiety, depression, and emotional exhaustion to record highs. The World Health Organization estimates that <span className="font-semibold text-on-surface">1 in 4 people</span> will experience a mental health condition at some point in their lives. Yet for most people, the help they need remains frustratingly out of reach.
+                Stress, loneliness, grief, and uncertainty can make it difficult to pause and reflect. An AI conversation can offer a place to organize your thoughts when you want to write them down.
               </p>
 
               <p className="font-body text-base md:text-lg text-on-surface-variant leading-relaxed mb-8">
-                A single session with a qualified therapist can cost anywhere from <span className="text-on-surface font-semibold">₹2,000 to ₹6,000 in India</span> — and far more in Western countries — with little to no insurance coverage. Finding the right therapist is itself a challenge: waiting lists stretch for months, good practitioners are scarce in smaller cities, and the stigma around seeking help still silences millions. The result? People suffer in silence, or delay getting help until a crisis forces their hand.
+                Professional care can involve cost, travel, or scheduling. This app provides a separate self-reflection tool; it does not diagnose conditions, deliver treatment, or replace a qualified professional.
               </p>
 
               {/* Three highlight points */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 {[
-                  { icon: '💸', label: 'Too Expensive', desc: 'Most people simply cannot afford consistent professional therapy sessions.' },
-                  { icon: '🗓️', label: 'Hard to Find', desc: 'Qualified therapists are scarce, overbooked, and often geographically inaccessible.' },
-                  { icon: '🤫', label: 'Still Stigmatized', desc: 'Social stigma keeps countless people from ever reaching out in the first place.' },
+                  { icon: '💸', label: 'No charge to start', desc: 'The Free tier has a daily AI usage allowance.' },
+                  { icon: '🗓️', label: 'Use on your schedule', desc: 'Write when the service is available, without booking a session.' },
+                  { icon: '📝', label: 'Reflect privately', desc: 'Review and control the memories the AI may use in future chats.' },
                 ].map(({ icon, label, desc }) => (
                   <div key={label} className="flex flex-col gap-2 p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
                     <span className="text-2xl">{icon}</span>
@@ -302,7 +287,7 @@ export default function Landing() {
               <div className="flex gap-4 p-5 rounded-2xl border-l-4 border-primary bg-primary/5 text-left">
                 <span className="material-symbols-outlined text-primary text-2xl flex-shrink-0 mt-0.5">info</span>
                 <p className="font-body text-sm md:text-base text-on-surface-variant leading-relaxed">
-                  <span className="font-semibold text-on-surface">TrustTherapy is not a replacement for professional mental health care.</span> If you are experiencing a crisis, please reach out to a licensed therapist or a helpline. What we offer is something different — a <span className="text-primary font-semibold">compassionate, always-available starting point.</span> A private space to untangle your thoughts at 3 AM, to process a hard day before it becomes a hard week, to begin the journey toward betterment before you're ready — or able — to see a professional. Sometimes, the most important step is simply not being alone with your thoughts.
+                  <span className="font-semibold text-on-surface">TrustTherapy is not a replacement for professional mental health care.</span> If you are in immediate danger or experiencing a crisis, contact local emergency services or a qualified crisis service. The AI can help with self-reflection but cannot provide emergency care.
                 </p>
               </div>
             </div>
@@ -328,7 +313,7 @@ export default function Landing() {
               </div>
               <div className="relative z-10">
                 <h3 className="font-headline text-3xl font-bold mb-4">Radical Accessibility</h3>
-                <p className="text-on-surface-variant max-w-md font-body leading-relaxed">No waiting lists. No appointments. Help is available 24/7, precisely at the moment you need it most, whether it's 3 AM or mid-afternoon.</p>
+                <p className="text-on-surface-variant max-w-md font-body leading-relaxed">No appointment is needed. You can start a conversation when the service is available and your daily allowance permits.</p>
               </div>
             </div>
             <div className="md:col-span-4 bg-primary text-on-primary rounded-3xl p-10 flex flex-col justify-center text-center items-center">
@@ -339,14 +324,14 @@ export default function Landing() {
             <div className="md:col-span-4 bg-surface-container-high rounded-3xl p-10 flex flex-col justify-between border border-outline-variant/10">
               <span className="material-symbols-outlined text-primary text-4xl">psychology</span>
               <div>
-                <h3 className="font-headline text-xl font-bold mb-2">Scientific Precision</h3>
-                <p className="text-on-surface-variant text-sm">Utilizing advanced cognitive behavioral patterns tailored to your unique emotional footprint.</p>
+                <h3 className="font-headline text-xl font-bold mb-2">Guided reflection</h3>
+                <p className="text-on-surface-variant text-sm">The AI can help organize thoughts and suggest questions for reflection. It does not provide diagnosis or treatment.</p>
               </div>
             </div>
             <div className="md:col-span-8 bg-surface-container-lowest rounded-3xl p-10 flex flex-col md:flex-row items-center gap-10 shadow-sm border border-outline-variant/10">
               <div className="w-full md:w-1/2">
-                <h3 className="font-headline text-3xl font-bold mb-4">Evolving Empathy</h3>
-                <p className="text-on-surface-variant font-body">Our models learn the nuances of your voice and history to provide context-aware support that deepens with every interaction.</p>
+                <h3 className="font-headline text-3xl font-bold mb-4">Context you control</h3>
+                <p className="text-on-surface-variant font-body">Confirmed memories can inform later conversations. You can review, edit, resolve, and forget saved memories.</p>
               </div>
               <div className="w-full md:w-1/2 h-full rounded-2xl overflow-hidden">
                 <img alt="Evolving Calm" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB04KGNTiDoDdkEPu5jRGzHrseYA60wmku-hgBvDeKgPYTM5HgRv33CPlakORH0MiptATgCrrcLHp7LoNV2nIrqMgUDZJuaFXNsYzGMQvMz_7ez8MYSa38qPCOd4rQXvtA3J5NyUiHcuEm2VflEfeOvDlzEU5VLKHWwbD5PMER3SdQvq0ist6gnQ7DZuX0IcnklUZuMygQrm-tcZkOuHXvc2XVFmDmGBmw3JDbf1lYLjt6FYxLwPuzRQuz9G58t3DtS_h5Uk5FIU_1s" />
@@ -361,7 +346,7 @@ export default function Landing() {
             <div>
               <h2 className="font-headline text-4xl md:text-6xl font-bold mb-8 tracking-tighter">Your mind is your <br /><span className="text-primary italic">private sanctuary.</span></h2>
               <p className="text-lg text-on-surface-variant mb-12 max-w-xl font-body leading-relaxed">
-                In an era of data harvesting, we believe mental health data is sacred. Our platform is built on the principle of radical privacy—your sessions are encrypted, anonymized, and never shared.
+                Message and memory text are encrypted before database storage. To generate a reply, the service sends relevant conversation content to its configured AI provider.
               </p>
               <div className="space-y-6">
                 <div className="flex gap-4">
@@ -369,8 +354,8 @@ export default function Landing() {
                     <span className="material-symbols-outlined text-primary">lock</span>
                   </div>
                   <div>
-                    <h4 className="font-headline font-bold text-lg">End-to-End Encryption</h4>
-                    <p className="text-on-surface-variant text-sm">Only you can access your conversation history. Even we can't read it.</p>
+                    <h4 className="font-headline font-bold text-lg">Encrypted storage</h4>
+                    <p className="text-on-surface-variant text-sm">Sensitive text fields are encrypted by the application before they are stored.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -378,8 +363,8 @@ export default function Landing() {
                     <span className="material-symbols-outlined text-primary">shield_person</span>
                   </div>
                   <div>
-                    <h4 className="font-headline font-bold text-lg">Zero-Knowledge Storage</h4>
-                    <p className="text-on-surface-variant text-sm">All identifying information is stripped from your profile before processing.</p>
+                    <h4 className="font-headline font-bold text-lg">Memory controls</h4>
+                    <p className="text-on-surface-variant text-sm">Review suggested memories, edit saved ones, or forget them from future AI context.</p>
                   </div>
                 </div>
               </div>
@@ -397,16 +382,16 @@ export default function Landing() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <h3 className="font-headline text-2xl font-bold mb-4 text-white">HIPAA Compliant</h3>
-                    <p className="text-white/70 mb-8 font-body">We adhere to the highest standards of medical data security and protection protocols.</p>
+                    <h3 className="font-headline text-2xl font-bold mb-4 text-white">Designed for careful handling</h3>
+                    <p className="text-white/70 mb-8 font-body">The application encrypts sensitive stored text and checks usage limits on the server.</p>
                     <div className="flex justify-around py-6 border-t border-white/10">
                       <div className="text-center">
                         <p className="text-2xl font-extrabold font-headline text-primary">256-bit</p>
-                        <p className="text-[10px] uppercase tracking-widest font-label text-white/50">AES Encryption</p>
+                        <p className="text-[10px] uppercase tracking-widest font-label text-white/50">Stored text encryption</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-extrabold font-headline text-primary">ISO</p>
-                        <p className="text-[10px] uppercase tracking-widest font-label text-white/50">27001:2022 Certified</p>
+                        <p className="text-2xl font-extrabold font-headline text-primary">Limits</p>
+                        <p className="text-[10px] uppercase tracking-widest font-label text-white/50">Server-enforced usage</p>
                       </div>
                     </div>
                   </div>
@@ -437,13 +422,13 @@ export default function Landing() {
                 </div>
                 <div className="flex items-end gap-1">
                   <span className="font-headline text-5xl font-extrabold">₹0</span>
-                  <span className="text-on-surface-variant mb-2">/month</span>
+                  <span className="text-on-surface-variant mb-2">free</span>
                 </div>
                 <ul className="space-y-3 text-sm">
                   {[
-                    'Unlimited therapy sessions',
+                    'Daily AI usage allowance',
                     'AI that learns your history',
-                    'End-to-end encrypted chats',
+                    'Sensitive text encrypted at rest',
                     'Long-term memory & profile',
                   ].map(f => (
                     <li key={f} className="flex items-center gap-3 text-on-surface-variant">
@@ -471,11 +456,11 @@ export default function Landing() {
 
                 <div>
                   <h3 className="font-headline text-2xl font-bold mb-1 text-primary">Pro</h3>
-                  <p className="text-on-surface-variant text-sm">Unlock a smarter, more capable AI therapist.</p>
+                  <p className="text-on-surface-variant text-sm">Unlock a more capable AI guide.</p>
                 </div>
                 <div className="flex items-end gap-1">
                   <span className="font-headline text-5xl font-extrabold">₹50</span>
-                  <span className="text-on-surface-variant mb-2">/month</span>
+                  <span className="text-on-surface-variant mb-2">for 30 days</span>
                 </div>
                 <ul className="space-y-3 text-sm">
                   {[
@@ -492,11 +477,13 @@ export default function Landing() {
                 </ul>
                 <button
                   onClick={handleUpgradeToPro}
-                  className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-center shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:scale-[1.02] active:scale-95 transition-all"
+                  disabled={upgradeLoading}
+                  className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-center shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {isAuthenticated && isPro ? '✨ Go to Chat (Already Pro)' : 'Upgrade to Pro →'}
+                  {isAuthenticated && isPro ? '✨ Go to Chat (Already Pro)' : upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro →'}
                 </button>
-                <p className="text-center text-xs text-on-surface-variant/50">Secure payment via Razorpay · Cancel anytime</p>
+                <p className="text-center text-xs text-on-surface-variant/50">One-time payment via Razorpay</p>
+                {upgradeError && <p role="alert" className="text-xs text-error">{upgradeError}</p>}
               </div>
             </div>
           </div>

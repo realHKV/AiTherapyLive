@@ -173,6 +173,7 @@ logging:
 # ─── Server ──────────────────────────────────────────────────────────────────
 server:
   port: 8080
+  forward-headers-strategy: native
   shutdown: graceful
   servlet:
     session:

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useSubscription } from '../context/subscriptionStore';
 import { profileAPI } from '../api/profile';
+import MemoryReview from '../components/MemoryReview';
 
-export default function UserProfilePanel({ isOpen, onClose, profile, memories, onProfileDeleted, enable3DBackground, onToggle3DBackground }) {
+export default function UserProfilePanel({ isOpen, onClose, profile, usage, usageError, onRefreshUsage, onProfileDeleted, enable3DBackground, onToggle3DBackground }) {
   const { deleteAccount } = useAuth();
-  const { isPro, openUpgradeLink, tier, proExpiresAt, isDevMode, devForcePro, devForceFree } = useSubscription();
+  const { isPro, startUpgrade, upgradeLoading, upgradeError, loading, statusLoaded, refreshStatus, tier, proExpiresAt, isDevMode, devForcePro, devForceFree } = useSubscription();
   const [isDeletingProfile, setIsDeletingProfile] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [devLoading, setDevLoading] = useState(false);
@@ -14,8 +15,8 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
     if (window.confirm("Are you sure you want to delete your AI profile? Your account will remain, but the AI will forget all personalized data and memories.")) {
       setIsDeletingProfile(true);
       try {
-        await profileAPI.deleteProfile();
-        alert('Profile deleted successfully.');
+        await profileAPI.resetContext();
+        alert('AI profile and memory context reset.');
         if (onProfileDeleted) onProfileDeleted();
         onClose();
       } catch (e) {
@@ -32,7 +33,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
       setIsDeletingAccount(true);
       try {
         await deleteAccount();
-      } catch (e) {
+      } catch {
         alert('Failed to delete account.');
         setIsDeletingAccount(false);
       }
@@ -156,34 +157,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
             </div>
           </section>
 
-          {/* Recent Memories */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50 mb-4">
-              Recent Memories <span className="text-tertiary ml-1">🔒 Encrypted</span>
-            </h3>
-            <div className="space-y-3">
-              {memories?.length ? (
-                memories.map((mem) => (
-                  <div key={mem.id} className="p-4 rounded-xl bg-surface-container-high border border-outline-variant/10">
-                    <div className="flex items-start justify-between mb-1.5">
-                      <span className="text-sm font-bold text-on-surface">{mem.title}</span>
-                      <span className="text-secondary text-xs">
-                        {'★'.repeat(mem.importance || 1)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-on-surface-variant leading-relaxed">{mem.detail}</p>
-                    {mem.occurredAt && (
-                      <p className="text-[10px] text-on-surface-variant/40 mt-2 uppercase tracking-wider">
-                        {mem.occurredAt}
-                      </p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <span className="text-sm text-on-surface-variant/50 italic">No memories extracted yet.</span>
-              )}
-            </div>
-          </section>
+          <MemoryReview isOpen={isOpen} />
 
           {/* Preferences */}
           <section>
@@ -205,15 +179,36 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
           </section>
 
           {/* Subscription Section */}
+          <section className="rounded-xl p-5 border border-outline-variant/20 bg-surface-container-low">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50">Daily AI usage</h3>
+              <button onClick={onRefreshUsage} className="text-xs text-primary hover:underline">Refresh</button>
+            </div>
+            {usage ? (
+              <div className="space-y-1 text-sm text-on-surface-variant">
+                <p>{usage.remainingRequests} requests remaining</p>
+                <p>{usage.remainingTokens.toLocaleString()} tokens remaining</p>
+                {usage.resetAt && !Number.isNaN(Date.parse(usage.resetAt)) &&
+                  <p className="text-xs">Resets {new Date(usage.resetAt).toLocaleString()}</p>}
+              </div>
+            ) : <p className="text-xs text-on-surface-variant">{usageError || 'Loading usage...'}</p>}
+          </section>
+
+          {/* Subscription Section */}
           <section className={`rounded-xl p-5 border ${isPro ? 'border-primary/30 bg-primary/5' : 'border-outline-variant/20 bg-surface-container-low'}`}>
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3">Subscription</h3>
-            {isPro ? (
+            {!statusLoaded ? (
+              <div className="text-xs text-on-surface-variant">
+                <p>{loading ? 'Checking your plan...' : 'Plan status is unavailable.'}</p>
+                {!loading && <button onClick={refreshStatus} className="mt-2 text-primary hover:underline">Retry</button>}
+              </div>
+            ) : isPro ? (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-primary">✨ Pro Plan</p>
                   <p className="text-xs text-on-surface-variant/60 mt-0.5">
                     {proExpiresAt
-                      ? `Renews ${new Date(proExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                      ? `Access until ${new Date(proExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                       : 'Active'}
                   </p>
                 </div>
@@ -223,12 +218,14 @@ export default function UserProfilePanel({ isOpen, onClose, profile, memories, o
               <div>
                 <p className="text-sm text-on-surface-variant mb-3">You're on the <strong>Free</strong> plan.</p>
                 <button
-                  onClick={openUpgradeLink}
-                  className="w-full py-2.5 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+                  onClick={() => startUpgrade(onRefreshUsage)}
+                  disabled={upgradeLoading}
+                  className="w-full py-2.5 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  Upgrade to Pro — ₹50/mo
+                  {upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro — ₹50'}
                 </button>
-                <p className="text-center text-[10px] text-on-surface-variant/40 mt-2">Secure · Razorpay · Cancel anytime</p>
+                <p className="text-center text-[10px] text-on-surface-variant/40 mt-2">One-time payment via Razorpay</p>
+                {upgradeError && <p role="alert" className="text-xs text-error mt-2">{upgradeError}</p>}
               </div>
             )}
           </section>

@@ -38,7 +38,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 | Step | Deliverable | Status | Evidence |
 | --- | --- | --- | --- |
-| 00 | Baseline and reproducible local environment | In progress | Rewritten commit `7c0cc58`; [Step 00 handoff](handoffs/STEP-00.md); container gate pending |
+| 00 | Baseline and reproducible local environment | In progress | Rewritten commit `7c0cc58`; [Step 00 handoff](handoffs/STEP-00.md); 2026-10-26 local suite: 104 tests, 79 passed, 25 Docker-backed skips; container gate pending |
 | 01 | Production authorization and secret/log fixes | Complete | Rewritten commit `3ed4ff5`; [Step 01 handoff](handoffs/STEP-01.md) |
 | 02 | Authentication lifecycle and account deletion | In progress | [Step 02 handoff](handoffs/STEP-02.md); Docker and IdP fixture gates pending |
 | 03 | Payment verification and entitlement correctness | In progress | PostgreSQL migration, duplicate-callback, and cross-purchase replay gates passed in Step 13 CI; [Step 03 handoff](handoffs/STEP-03.md); Razorpay test-mode validation remains a Step 16 gate |
@@ -56,8 +56,8 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 | 15 | Cost-capped AWS demo infrastructure and release workflow | Prepared; AWS setup pending | [Step 15 handoff](handoffs/STEP-15.md); Terraform validates; no AWS resources created |
 | 16 | Staging deployment and restore/rollback rehearsal | In progress | [Step 16 handoff](handoffs/STEP-16.md); Sydney Free-plan access, Neon/Upstash probes, budget, and Razorpay test keys verified; backend not deployed |
 | 17 | Backend handoff package for frontend | Pending | — |
-| 18 | Frontend API client and authentication integration | Pending | — |
-| 19 | Frontend chat, profile, usage, and billing integration | Pending | — |
+| 18 | Frontend API client and authentication integration | In progress | Shared API base URL, single-flight refresh with read-only retry, OAuth ticket exchange, and retryable logout/deletion failure handling implemented locally; live Google round-trip remains pending |
+| 19 | Frontend chat, profile, usage, and billing integration | In progress | V2 chat/SSE, server-owned checkout, usage/status, canonical onboarding fields, and versioned memory review/edit/forget/reset implemented locally; full frontend lint/build/API tests pass; live browser acceptance remains pending |
 | 20 | Browser acceptance and coordinated release | Pending | — |
 
 ## Phase A — establish and secure the current backend
@@ -216,7 +216,7 @@ An unavailable AWS account must not block local adapter tests or infrastructure 
 
 **Read:** pipeline/runbooks, backend acceptance report, actual AWS settings, and AWS_MIGRATION cutover/rollback rules.
 
-**Current status:** in progress. Neon verified-TLS read-only login and Upstash TLS/auth/PING passed. The user chose to keep the AWS Free plan and deploy the backend in the project's assigned Sydney Region; CLI identity, $100 credit/expiry, and a $15/month gross-cost alert were verified. The Step 15 Mumbai App Runner Terraform is incompatible with this account and must not be applied. The ignored local configuration now has Razorpay test-mode API keys, while the webhook secret awaits the public HTTPS endpoint. A secure single-EC2/CloudFront design is under review with Netlify retained for the frontend and no purchased domain or load balancer. A live Nova Micro invocation was rejected: the model is authorized/available, but its Sydney inference quotas are zero. The user opened AWS Support case **179265838600276**; AWS must enable nonzero quotas before a warm server can serve AI requests. No compute or staging service exists yet. The live acceptance matrix and remaining gates are in [Step 16 handoff](handoffs/STEP-16.md).
+**Current status:** in progress. Neon verified-TLS read-only login and Upstash TLS/auth/PING passed. The user chose to keep the AWS Free plan and deploy the backend in the project's assigned Sydney Region; CLI identity, $100 credit/expiry, and a $15/month gross-cost alert were verified. The Step 15 Mumbai App Runner Terraform is incompatible with this account and must not be applied. The ignored local configuration now has Razorpay test-mode API keys, while the webhook secret awaits the public HTTPS endpoint. A secure single-EC2/CloudFront design is under review with Netlify retained for the frontend and no purchased domain or load balancer. A live regional Nova Micro invocation was rejected when the selected model's Sydney inference quotas were zero. The user later supplied evidence of 8,000,000 global Nova 2 Lite tokens/minute and reported 2,000 requests/minute; the global daily limit and an actual invocation remain unverified. No compute or staging service exists yet. The user directed work to continue on local development while those checks wait. The live acceptance matrix and remaining gates are in [Step 16 handoff](handoffs/STEP-16.md).
 
 **Interim work:** finish the Sydney ingress/security and image-delivery design, Google/Razorpay configuration preparation, frontend contract integration using the deterministic fake gateway, and synthetic recovery checks. Keep real therapy content out of Google's unpaid Gemini API; its data-use terms make that unsuitable as an automatic fallback. The Bedrock-only release choice remains in force unless the user explicitly changes it.
 

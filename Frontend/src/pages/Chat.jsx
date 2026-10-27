@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { chatAPI } from '../api/chat';
+import { readChatStream } from '../api/chatStream';
 import { profileAPI } from '../api/profile';
+import { usageAPI } from '../api/usage';
 import { useAuth } from '../context/AuthContext';
 import UserProfilePanel from './UserProfilePanel';
 import ReactMarkdown from 'react-markdown';
@@ -11,13 +13,17 @@ import ThemeToggle from '../components/ThemeToggle';
 export default function Chat() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [chatBlocked, setChatBlocked] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [memories, setMemories] = useState([]);
+  const [usage, setUsage] = useState(null);
+  const [usageError, setUsageError] = useState('');
   const [isSessionStarting, setIsSessionStarting] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Connecting to your session...');
   const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
@@ -26,6 +32,33 @@ export default function Chat() {
     return localStorage.getItem('enable3DBackground') === 'true';
   });
   const messagesEndRef = useRef(null);
+  const activeStreamRef = useRef(null);
+  const usageRequestRef = useRef(0);
+
+  const refreshUsage = useCallback(async () => {
+    const request = ++usageRequestRef.current;
+    try {
+      const status = await usageAPI.getStatus();
+      if (request !== usageRequestRef.current) return;
+      setUsage(status);
+      setUsageError('');
+    } catch {
+      if (request !== usageRequestRef.current) return;
+      setUsage(null);
+      setUsageError('Usage status is temporarily unavailable.');
+    }
+  }, []);
+
+  useEffect(() => { refreshUsage(); }, [refreshUsage]);
+
+  useEffect(() => {
+    if (location.state?.showUpgrade) {
+      setIsProfileOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => () => activeStreamRef.current?.abort(), []);
 
   const toggle3DBackground = () => {
     setEnable3DBackground(prev => {
@@ -47,14 +80,12 @@ export default function Chat() {
     const initData = async () => {
       try {
         setLoadingMessage('Connecting to your session...');
-        const [sessionRes, profileRes, memoriesRes] = await Promise.all([
+        const [sessionRes, profileRes] = await Promise.all([
           chatAPI.createSession(),
           profileAPI.getProfile(),
-          profileAPI.getMemories()
         ]);
         
-        // Onboarding Guard: if the user lacks a selected therapist (aiPersona), force them to onboard
-        if (profileRes && !profileRes.aiPersona) {
+        if (profileRes && profileRes.onboardingComplete === false) {
           navigate('/about-you', { replace: true });
           return;
         }
@@ -64,9 +95,8 @@ export default function Chat() {
           setMessages(sessionRes.recentMessages || []);
         }
         if (profileRes) setProfile(profileRes);
-        if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
       } catch (err) {
-        console.error('Failed to initialize chat data', err);
+        setChatError(err.response?.data?.error?.message || 'Could not connect to your session. Please refresh to try again.');
       } finally {
         setIsSessionStarting(false);
       }
@@ -76,22 +106,21 @@ export default function Chat() {
 
   const handleEndSession = async () => {
     if (!sessionId) return;
+    activeStreamRef.current?.abort();
     setIsSessionStarting(true);
     setLoadingMessage('Saving your session & updating profile...');
     try {
       await chatAPI.endSession(sessionId);
       try {
-        const [profileRes, memoriesRes] = await Promise.all([
-          profileAPI.getProfile(),
-          profileAPI.getMemories()
-        ]);
+        const profileRes = await profileAPI.getProfile();
         if (profileRes) setProfile(profileRes);
-        if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
       } catch (e) {
         console.error('Failed to fetch updated profile', e);
       }
       setSessionId(null);
       setMessages([]);
+      setChatBlocked(false);
+      setChatError('');
       setLoadingMessage('Starting new session...');
       const sessionRes = await chatAPI.createSession();
       if (sessionRes && sessionRes.id) {
@@ -99,23 +128,28 @@ export default function Chat() {
         setMessages(sessionRes.recentMessages || []);
       }
     } catch (err) {
-      console.error('Failed to end session', err);
+      setChatError(err.response?.data?.error?.message || 'Could not end the session. Please try again.');
     } finally {
       setIsSessionStarting(false);
+      refreshUsage();
     }
   };
 
   const handleOpenProfile = async () => {
     setIsProfileOpen(true);
     try {
-      const [profileRes, memoriesRes] = await Promise.all([
-        profileAPI.getProfile(),
-        profileAPI.getMemories()
-      ]);
+      const profileRes = await profileAPI.getProfile();
       if (profileRes) setProfile(profileRes);
-      if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
     } catch (e) {
       console.error('Failed to refresh profile', e);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      setChatError('Logout could not be confirmed. Please try again.');
     }
   };
 
@@ -124,12 +158,8 @@ export default function Chat() {
     setIsRefreshingProfile(true);
     try {
       await chatAPI.refreshProfileMidSession(sessionId);
-      const [profileRes, memoriesRes] = await Promise.all([
-        profileAPI.getProfile(),
-        profileAPI.getMemories()
-      ]);
+      const profileRes = await profileAPI.getProfile();
       if (profileRes) setProfile(profileRes);
-      if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
     } catch (e) {
       console.error('Failed to refresh profile mid-session', e);
     } finally {
@@ -137,71 +167,98 @@ export default function Chat() {
     }
   };
 
-  const readStream = async (reader, decoder) => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const dataStr = line.slice(5);
-            if (dataStr === '[DONE]') { setIsTyping(false); break; }
-            if (dataStr) {
-              if (dataStr === '[ERROR: RATE_LIMIT_EXCEEDED]') {
-                setMessages(prev => {
-                  const lastMsg = prev[prev.length - 1];
-                  if (lastMsg && lastMsg.isStreaming) {
-                    return [...prev.slice(0, -1), { ...lastMsg, content: '⚠️ Rate limit exceeded. The AI provider is receiving too many requests. Please try again in 5 seconds.' }];
-                  } else {
-                    return [...prev, { id: Date.now(), senderRole: 'ASSISTANT', content: '⚠️ Rate limit exceeded. Please try again in 5 seconds.', isStreaming: false }];
-                  }
-                });
-                setIsTyping(false);
-                break;
-              }
-              setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg && lastMsg.senderRole === 'ASSISTANT' && lastMsg.isStreaming) {
-                  return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + dataStr }];
-                } else {
-                  return [...prev, { id: Date.now(), senderRole: 'ASSISTANT', content: dataStr, isStreaming: true }];
-                }
-              });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Stream reading error', err);
-    } finally {
-      setIsTyping(false);
-      setMessages(prev => {
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg && lastMsg.isStreaming) {
-          return [...prev.slice(0, -1), { ...lastMsg, isStreaming: false }];
-        }
-        return prev;
-      });
-    }
-  };
-
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !sessionId) return;
+    if (!input.trim() || !sessionId || isTyping || chatBlocked) return;
     const userMsg = { id: Date.now(), senderRole: 'USER', content: input };
+    const streamMessageId = crypto.randomUUID();
+    const controller = new AbortController();
+    activeStreamRef.current = controller;
+    setChatError('');
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
     try {
-      const response = await chatAPI.createStreamSource(sessionId, userMsg.content);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      await readStream(reader, decoder);
+      const response = await chatAPI.createStreamSource(sessionId, userMsg.content, { signal: controller.signal });
+      let sawDelta = false;
+      let completed = false;
+      let terminalError = null;
+      let requestId = response.headers.get('X-Request-Id');
+      await readChatStream(response, (name, data) => {
+        requestId = data.requestId;
+        if (name === 'start') {
+          setMessages(prev => prev.map(message => message.id === userMsg.id
+            ? { ...message, id: data.userMessageId } : message));
+        } else if (name === 'delta') {
+          sawDelta = true;
+          setMessages(prev => {
+            const existing = prev.findIndex(message => message.id === streamMessageId);
+            if (existing === -1) return [...prev, { id: streamMessageId, senderRole: 'ASSISTANT', content: data.text, isStreaming: true }];
+            return prev.map(message => message.id === streamMessageId
+              ? { ...message, content: message.content + data.text } : message);
+          });
+        } else if (name === 'complete') {
+          completed = true;
+          setMessages(prev => prev.map(message => message.id === streamMessageId
+            ? { ...message, id: data.assistantMessageId, isStreaming: false } : message));
+        } else if (name === 'error') {
+          terminalError = data.message || 'The AI service could not complete this request.';
+          setMessages(prev => prev.filter(message => message.id !== streamMessageId));
+        }
+      });
+      if (terminalError) setChatError(terminalError);
+      if (completed && !sawDelta && requestId) {
+        try {
+          const status = await chatAPI.getRequestStatus(requestId);
+          if (status.assistantMessage) setMessages(prev => [...prev, status.assistantMessage]);
+          else {
+            setChatError('The reply is being checked. Refresh the session before sending again.');
+            setChatBlocked(true);
+          }
+        } catch {
+          setChatError('The reply could not be loaded. Refresh the session before sending again.');
+          setChatBlocked(true);
+        }
+      }
     } catch (err) {
-      console.error('Failed to send message', err);
+      if (!controller.signal.aborted) {
+        if (err.requestId) {
+          try {
+            const status = await chatAPI.getRequestStatus(err.requestId);
+            if (status.status === 'completed' && status.assistantMessage) {
+              setMessages(prev => [...prev.filter(message => message.id !== streamMessageId), status.assistantMessage]);
+            } else {
+              setMessages(prev => prev.filter(message => message.id !== streamMessageId));
+              setChatError(status.status === 'failed'
+                ? 'The AI service could not complete this request.'
+                : 'The request is still being checked. Refresh the session before sending again.');
+              if (status.status !== 'failed') setChatBlocked(true);
+            }
+          } catch {
+            setChatError('The connection ended before the result could be confirmed. Refresh before sending again.');
+            setChatBlocked(true);
+          }
+        } else {
+          if (err.status === 429) {
+            const reset = err.resetAt || usage?.resetAt;
+            const resetTime = reset && !Number.isNaN(Date.parse(reset))
+              ? ` Please try again after ${new Date(reset).toLocaleString()}.` : '';
+            const waitTime = err.retryAfter && Number.isFinite(Number(err.retryAfter))
+              ? ` Please try again in ${err.retryAfter} seconds.` : '';
+            setChatError(err.message + (err.code === 'RATE_LIMITED' && err.retryAfter ? waitTime : resetTime));
+          } else if (err.code === 'ACCOUNTING_UNAVAILABLE') {
+            setChatError('Usage accounting is temporarily unavailable. Please try again later.');
+          } else {
+            setChatError(err.message || 'Could not send your message.');
+          }
+          setMessages(prev => prev.filter(message => message.id !== userMsg.id));
+          setInput(userMsg.content);
+        }
+      }
+    } finally {
+      if (activeStreamRef.current === controller) activeStreamRef.current = null;
       setIsTyping(false);
+      refreshUsage();
     }
   };
 
@@ -312,7 +369,7 @@ export default function Chat() {
 
             {/* Logout */}
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="hidden md:block px-4 py-1.5 rounded-full text-sm font-semibold glass-morphism border border-outline-variant/20 text-on-surface-variant hover:text-on-surface transition-all"
             >
               Logout
@@ -347,7 +404,7 @@ export default function Chat() {
               </>
             )}
             <button
-              onClick={() => { logout(); setIsMobileMenuOpen(false); }}
+              onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
               className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-sm font-semibold text-left mt-2 border border-outline-variant/20"
             >
               <span className="material-symbols-outlined text-lg">logout</span> Logout
@@ -427,6 +484,11 @@ export default function Chat() {
 
             {/* ── Input Bar ── */}
             <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
+              {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
+              {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
+                {usage.tier} · {usage.remainingRequests} daily requests and {usage.remainingTokens.toLocaleString()} tokens remaining
+                {usage.resetAt && !Number.isNaN(Date.parse(usage.resetAt)) && ` · Resets ${new Date(usage.resetAt).toLocaleString()}`}
+              </p>}
               <form onSubmit={handleSend} className="max-w-4xl mx-auto pointer-events-auto">
                 <div className="glass-morphism p-1.5 md:p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-2 md:gap-3">
                   <input
@@ -434,19 +496,19 @@ export default function Chat() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Share your thoughts..."
-                    disabled={isTyping}
+                    disabled={isTyping || chatBlocked || !sessionId}
                     className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-3 md:px-4 font-medium text-[15px] md:text-base disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || isTyping}
+                    disabled={!input.trim() || isTyping || chatBlocked || !sessionId}
                     className="h-10 md:h-11 px-5 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     Send
                   </button>
                 </div>
                 <p className="text-center mt-3 text-[10px] text-on-surface-variant/30 font-bold uppercase tracking-[0.3em]">
-                  End-to-End Encrypted Session
+                  Encrypted in transit and sensitive fields protected at rest
                 </p>
               </form>
             </div>
@@ -492,7 +554,10 @@ export default function Chat() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profile={profile}
-        memories={memories}
+        onProfileDeleted={() => navigate('/about-you', { replace: true })}
+        usage={usage}
+        usageError={usageError}
+        onRefreshUsage={refreshUsage}
         enable3DBackground={enable3DBackground}
         onToggle3DBackground={toggle3DBackground}
       />

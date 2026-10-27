@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/write-netlify-redirects.mjs",
+    "test": "node --test src/api/*.test.mjs src/components/*.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

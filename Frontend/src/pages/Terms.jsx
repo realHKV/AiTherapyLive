@@ -67,9 +67,8 @@ export default function Terms() {
           <section>
             <h2 className="font-headline text-2xl font-bold mb-4 text-on-surface">4. Subscriptions & Payments</h2>
             <p className="text-on-surface-variant leading-relaxed mb-4">
-              Our "Pro" tier is a recurring subscription processed via Razorpay. You can cancel at any time through 
-              the app. Refunds are handled on a case-by-case basis. We reserve the right to change our pricing 
-              with reasonable notice to active subscribers.
+              Pro access is purchased as a one-time, 30-day term through Razorpay. It does not renew automatically.
+              A further purchase extends an active term by 30 days. The amount is shown before you confirm payment.
             </p>
           </section>
 
@@ -85,7 +84,7 @@ export default function Terms() {
 
         <footer className="mt-20 pt-10 border-t border-outline-variant/10 text-center">
           <p className="text-sm text-on-surface-variant/60">
-            Last updated: April 25, 2026<br />
+            Last updated: October 26, 2026<br />
             Questions? Contact us at imnotharsh14@gmail.com
           </p>
         </footer>
