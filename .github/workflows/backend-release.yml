@@ -17,7 +17,9 @@ jobs:
   publish:
     if: >-
       github.repository == 'realHKV/AiTherapyLive' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/backend-image-'))
+      (github.ref == 'refs/heads/main' ||
+       (startsWith(github.ref, 'refs/tags/backend-image-') &&
+        !startsWith(github.ref, 'refs/tags/backend-image-export-')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: backend-release
@@ -100,7 +102,7 @@ jobs:
     if: >-
       github.repository == 'realHKV/AiTherapyLive' &&
       github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/codex/backend-baseline'
+      startsWith(github.ref, 'refs/tags/backend-image-export-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: backend-release
