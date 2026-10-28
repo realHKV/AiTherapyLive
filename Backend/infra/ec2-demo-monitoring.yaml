@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Email notification for failed status checks on the scheduled Sydney demo EC2 host.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+Parameters:
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: Existing AiTherapy demo instance in Sydney.
+  AlertEmail:
+    Type: String
+    NoEcho: true
+    AllowedPattern: '[^@\s]+@[^@\s]+\.[^@\s]+'
+    Description: Existing AWS budget alert recipient; must confirm the SNS subscription email.
+Resources:
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Delivers demo host status failures to the owner's approved budget alert email.
+        must:
+          - Keep this topic in the staging account and Sydney Region.
+          - Do not include application logs, user content, or secrets in notifications.
+    Properties:
+      Tags:
+        - Key: Project
+          Value: AiTherapy
+        - Key: Environment
+          Value: demo
+  AlertSubscription:
+    Type: AWS::SNS::Subscription
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Uses the existing budget alert recipient for demo host failures.
+        must:
+          - The recipient must confirm the AWS SNS email before alarm delivery is active.
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+  AlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Permits only this account's specific CloudWatch alarm to publish failure notifications.
+        must:
+          - Preserve SourceArn and SourceAccount conditions to limit the publisher.
+    Properties:
+      Topics:
+        - !Ref AlertTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CloudWatchAlarmPublish
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref AlertTopic
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt HostStatusAlarm.Arn
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+  HostStatusAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Reports repeated EC2 system or instance status-check failures during the demo's running hours.
+        must:
+          - Missing metrics during the scheduled stop must not trigger an alert.
+          - Notify only on ALARM transitions; do not stop, reboot, or recover the instance automatically.
+    Properties:
+      AlarmDescription: AiTherapy Sydney demo EC2 failed status checks; planned overnight stop causes insufficient data.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlertTopic
+      ActionsEnabled: true
+Outputs:
+  AlarmName:
+    Value: !Ref HostStatusAlarm
+  TopicArn:
+    Value: !Ref AlertTopic
