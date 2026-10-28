@@ -5,7 +5,7 @@ const rules = [];
 
 if (rawOrigin) {
   if (process.env.CONTEXT === 'production') {
-    throw new Error('The staging OAuth proxy must be limited to a Deploy Preview.');
+    throw new Error('The staging API proxy must be limited to a Deploy Preview.');
   }
   const origin = new URL(rawOrigin);
   if (origin.protocol !== 'https:' || origin.username || origin.password ||
@@ -15,6 +15,7 @@ if (rawOrigin) {
 
   rules.push(`/api/v1/oauth2/* ${origin.origin}/api/v1/oauth2/:splat 200`);
   rules.push(`/api/v1/login/oauth2/* ${origin.origin}/api/v1/login/oauth2/:splat 200`);
+  rules.push(`/api/v1/payment/webhook ${origin.origin}/api/v1/payment/webhook 200`);
 }
 
 rules.push('/* /index.html 200');
