@@ -444,7 +444,30 @@ public class ChatTurnWorkflow {
                     ? GenerationMessage.Role.USER : GenerationMessage.Role.ASSISTANT, message.getContent()));
         }
         Collections.reverse(selected.subList(1, selected.size()));
-        return List.copyOf(selected);
+        return normalizeProviderHistory(selected);
+    }
+
+    static List<GenerationMessage> normalizeProviderHistory(List<GenerationMessage> selected) {
+        if (selected.isEmpty() || selected.get(0).role() != GenerationMessage.Role.SYSTEM)
+            throw new IllegalArgumentException("Provider history must begin with a system prompt");
+        List<GenerationMessage> normalized = new ArrayList<>();
+        normalized.add(selected.get(0));
+        for (int i = 1; i < selected.size(); i++) {
+            GenerationMessage turn = selected.get(i);
+            if (turn.role() == GenerationMessage.Role.SYSTEM)
+                throw new IllegalArgumentException("System prompts must precede conversation turns");
+            // The greeting has no stored user turn. Failed turns can also leave
+            // adjacent user messages. Nova requires user-first alternating roles.
+            if (normalized.size() == 1 && turn.role() == GenerationMessage.Role.ASSISTANT) continue;
+            int last = normalized.size() - 1;
+            if (normalized.get(last).role() == turn.role()) {
+                GenerationMessage prior = normalized.get(last);
+                normalized.set(last, new GenerationMessage(turn.role(), prior.content() + "\n" + turn.content()));
+            } else {
+                normalized.add(turn);
+            }
+        }
+        return List.copyOf(normalized);
     }
 
     private GenerationResult callSync(Prepared prepared) {

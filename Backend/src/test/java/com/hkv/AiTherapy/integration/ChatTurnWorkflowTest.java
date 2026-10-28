@@ -13,13 +13,16 @@ import com.hkv.AiTherapy.service.ai.routing.CancellationToken;
 import com.hkv.AiTherapy.service.ai.routing.GenerationEvent;
 import com.hkv.AiTherapy.service.ai.routing.GenerationFailure;
 import com.hkv.AiTherapy.service.ai.routing.GenerationGateway;
+import com.hkv.AiTherapy.service.ai.routing.GenerationMessage;
 import com.hkv.AiTherapy.service.ai.routing.GenerationResult;
 import com.hkv.AiTherapy.service.ai.routing.GenerationUsage;
+import com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.chat.ChatTurnWorkflow;
 import com.hkv.AiTherapy.service.job.ScheduledTaskCoordinator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -376,6 +379,22 @@ class ChatTurnWorkflowTest {
         assertEquals(1, messages.countByConversationId(UUID.fromString(first.getId())));
         assertEquals(1, requests.findAll().stream().filter(request -> request.getUser().getId().equals(user.getId())).count());
         verify(gateway, times(1)).generate(any(), any());
+    }
+
+    @Test
+    void firstChatAfterGeneratedGreetingStartsProviderHistoryWithUser() {
+        User user = createUser();
+        ConversationResponse session = workflow.startSession(user.getId(), UUID.randomUUID().toString());
+
+        workflow.submit(user.getId(), UUID.fromString(session.getId()), UUID.randomUUID().toString(),
+                "Synthetic first chat turn");
+
+        ArgumentCaptor<ResolvedGeneration> requests = ArgumentCaptor.forClass(ResolvedGeneration.class);
+        verify(gateway, times(2)).generate(requests.capture(), any());
+        List<GenerationMessage> chat = requests.getAllValues().get(1).messages();
+        assertEquals(GenerationMessage.Role.SYSTEM, chat.get(0).role());
+        assertEquals(GenerationMessage.Role.USER, chat.get(1).role());
+        assertEquals("Synthetic first chat turn", chat.get(1).content());
     }
 
     private User createUser() {

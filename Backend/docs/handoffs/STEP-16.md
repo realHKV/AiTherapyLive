@@ -9,6 +9,7 @@
 - CloudTrail Event History confirms `StopInstances` at 2026-10-28 00:00:26 IST and `StartInstances` at 07:00:46 IST for the scheduled instance. EC2 is running with the same Elastic IP. This verifies the first actual nightly schedule execution; startup readiness timing still merits an observation near 07:00.
 - A disposable synthetic account passed public HTTPS registration (201), login (200), refresh (200), logout (200), revoked-refresh rejection (401), and account deletion (200). This checks the backend auth lifecycle without retaining the synthetic record.
 - Read-only Sydney inspection found no `aitherapy` CloudWatch metric alarm and no `/aitherapy` CloudWatch Logs group. Docker's bounded local logs remain available on encrypted EBS, but alert delivery, central log retention, and recovery after instance loss are not yet verified.
+- A live synthetic SSE request returned `start` then `error` with code `GENERATION_INVALID_REQUEST`; the disposable account was deleted. The session greeting had been stored as an assistant message without its internal user prompt. That made the first provider conversation turn `assistant`, which [Nova 2 rejects](https://docs.aws.amazon.com/nova/latest/nova2-userguide/request-response-schema.html). The source now drops orphan leading assistant turns and combines adjacent same-role turns. Focused non-Docker unit tests pass; the new image and live stream still need CI, deployment, and repeat verification.
 
 ## 2026-10-27 Sydney host update
 
