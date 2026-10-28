@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run on the Sydney EC2 host through SSM. The security group has no ingress.
+# Run on the Sydney EC2 host through SSM.
 image="${1:?Usage: private-ec2-start.sh IMAGE}"
 parameter_name="/aitherapy/demo/runtime-env"
+webhook_parameter_name="/aitherapy/demo/razorpay-webhook-secret"
 runtime_dir="/etc/aitherapy"
 runtime_file="$runtime_dir/runtime.env"
 parameter_file="$(mktemp)"
+webhook_parameter_file="$(mktemp)"
+webhook_error_file="$(mktemp)"
 previous_file=""
-trap 'rm -f "$parameter_file"; if [ -n "$previous_file" ]; then rm -f "$previous_file"; fi' EXIT
+trap 'rm -f "$parameter_file" "$webhook_parameter_file" "$webhook_error_file"; if [ -n "$previous_file" ]; then rm -f "$previous_file"; fi' EXIT
 
 start_container() {
   local selected_image="$1"
@@ -44,17 +47,32 @@ fi
 chmod 0600 "$parameter_file"
 aws ssm get-parameter --region ap-southeast-2 --name "$parameter_name" \
   --with-decryption --output json > "$parameter_file"
+if ! aws ssm get-parameter --region ap-southeast-2 --name "$webhook_parameter_name" \
+    --with-decryption --output json > "$webhook_parameter_file" 2> "$webhook_error_file"; then
+  if grep -q '(ParameterNotFound)' "$webhook_error_file"; then
+    : > "$webhook_parameter_file"
+  else
+    cat "$webhook_error_file" >&2
+    exit 1
+  fi
+fi
 
-python3 - "$parameter_file" "$runtime_file" <<'PY'
+python3 - "$parameter_file" "$webhook_parameter_file" "$runtime_file" <<'PY'
 import json
 import os
 import sys
 import tempfile
 
-source, destination = sys.argv[1:]
+source, webhook_source, destination = sys.argv[1:]
 with open(source, encoding="utf-8") as handle:
     values = json.load(handle)["Parameter"]["Value"]
 settings = json.loads(values)
+if os.path.getsize(webhook_source):
+    with open(webhook_source, encoding="utf-8") as handle:
+        webhook_secret = json.load(handle)["Parameter"]["Value"]
+    if not webhook_secret or any(char in webhook_secret for char in "\r\n\0"):
+        raise SystemExit("Invalid separate Razorpay webhook secret")
+    settings["RAZORPAY_WEBHOOK_SECRET"] = webhook_secret
 required = {
     "DATABASE_URL", "DATABASE_USER", "DATABASE_PASSWORD", "REDIS_HOST",
     "REDIS_PASSWORD", "JWT_PRIVATE_KEY", "JWT_PUBLIC_KEY",
