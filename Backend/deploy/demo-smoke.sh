@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Public checks only. Run after App Runner reports the deployed revision ready.
+# Public checks only. Run after trusted HTTPS ingress reaches the backend.
 base_url="${1:-}"
-if [[ ! "$base_url" =~ ^https://[a-z0-9.-]+\.awsapprunner\.com/?$ ]]; then
-  echo 'Usage: demo-smoke.sh https://<service>.awsapprunner.com' >&2
+if ! python3 - "$base_url" <<'PY'
+import ipaddress
+import sys
+from urllib.parse import urlsplit
+
+url = urlsplit(sys.argv[1])
+valid = url.scheme == 'https' and url.hostname and url.port is None and \
+    url.username is None and url.password is None and url.path in ('', '/') and \
+    not url.query and not url.fragment
+if valid:
+    try:
+        valid = ipaddress.ip_address(url.hostname).is_global
+    except ValueError:
+        valid = url.hostname.endswith('.awsapprunner.com')
+raise SystemExit(0 if valid else 1)
+PY
+then
+  echo 'Usage: demo-smoke.sh https://<public-IP> or https://<service>.awsapprunner.com' >&2
   exit 2
 fi
 base_url="${base_url%/}"

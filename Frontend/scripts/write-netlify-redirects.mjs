@@ -4,6 +4,9 @@ const rawOrigin = process.env.NETLIFY_API_ORIGIN?.trim();
 const rules = [];
 
 if (rawOrigin) {
+  if (process.env.CONTEXT === 'production') {
+    throw new Error('The staging OAuth proxy must be limited to a Deploy Preview.');
+  }
   const origin = new URL(rawOrigin);
   if (origin.protocol !== 'https:' || origin.username || origin.password ||
       origin.pathname !== '/' || origin.search || origin.hash) {
