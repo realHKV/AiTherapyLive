@@ -1,6 +1,10 @@
 # Step 16 — Staging validation and recovery rehearsal
 
-**Status: in progress; Sydney backend has trusted public HTTPS and a Netlify Deploy Preview, but end-to-end acceptance is pending.** This page records executed evidence and the remaining gates. The user chose to keep the Free plan and deploy in the AiTherapy project's Sydney Region. The Step 15 Mumbai App Runner stack is retained as an unapplied reference because this account does not support it. Netlify remains the frontend and Neon/Upstash remain the existing data services. Do not label Step 16 complete based on health checks and synthetic smoke alone.
+**Status: in progress; Sydney backend has trusted public HTTPS and a Netlify Deploy Preview. Browser payment and chat checks passed, while release acceptance remains open.** This page records executed evidence and the remaining gates. The user chose to keep the Free plan and deploy in the AiTherapy project's Sydney Region. The Step 15 Mumbai App Runner stack is retained as an unapplied reference because this account does not support it. Netlify remains the frontend and Neon/Upstash remain the existing data services. Do not label Step 16 complete based on health checks and synthetic smoke alone.
+
+## 2026-10-29 browser demo checks
+
+- The owner confirmed that the Netlify Deploy Preview displayed Pro after the Razorpay Test Mode checkout, then reported that browser chat responded successfully. No chat text was collected for this handoff. This verifies the visible core demo flow for that account; separate failure, cancellation, tier-expiry, recovery, and operations checks remain open.
 
 ## 2026-10-28 public staging update
 
