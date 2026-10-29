@@ -42,6 +42,18 @@ class SummaryExtractionValidatorTest {
     }
 
     @Test
+    void keepsSupportedMemoryWhenAnotherSuggestionHasInvalidEvidence() {
+        var result = validator.validate("""
+                {"summary":"Discussed education goal.","profileCandidates":[{"field":"name","value":"Alex",
+                 "sourceMessageId":"%s","evidence":"My name is Alex"}],"traits":[],
+                 "memories":[{"type":"goal","title":"Finish nursing course","importance":7,
+                 "sourceMessageId":"%s","evidence":"working toward finishing my nursing course"}]}
+                """.formatted(sourceId, sourceId), transcript);
+        assertEquals(1, result.candidates().size());
+        assertEquals("goal", result.candidates().getFirst().memoryType());
+    }
+
+    @Test
     void rejectsInvalidDatesAndOutOfRangeImportance() {
         String output = """
                 {"summary":"Summary.","memories":[{"type":"goal","title":"Finish course","importance":11,

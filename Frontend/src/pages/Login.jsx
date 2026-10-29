@@ -15,7 +15,7 @@ export default function Login() {
     setError(null);
     try {
       await login(email, password);
-      navigate('/chat');
+      navigate('/home');
     } catch (err) {
       setError(err?.response?.data?.error?.message || err.message || 'Login failed');
     }

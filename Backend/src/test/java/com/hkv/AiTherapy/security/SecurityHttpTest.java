@@ -126,13 +126,15 @@ class SecurityHttpTest {
     @Test
     void profileExtractionStatusRequiresOwnership() throws Exception {
         UUID sessionId = UUID.randomUUID();
-        mvc.perform(get("/chat/sessions/{sessionId}/extraction-status", sessionId))
+        UUID jobId = UUID.randomUUID();
+        mvc.perform(get("/chat/sessions/{sessionId}/extraction-status", sessionId).param("jobId", jobId.toString()))
                 .andExpect(status().isUnauthorized());
         when(conversationRepository.findById(sessionId)).thenReturn(java.util.Optional.of(
                 com.hkv.AiTherapy.domain.Conversation.builder()
                         .user(com.hkv.AiTherapy.domain.User.builder().id(UUID.randomUUID()).build())
                         .build()));
         mvc.perform(get("/chat/sessions/{sessionId}/extraction-status", sessionId)
+                        .param("jobId", jobId.toString())
                         .header("Authorization", "Bearer synthetic-valid-token"))
                 .andExpect(status().isNotFound());
         verifyNoInteractions(extractionJobRepository);

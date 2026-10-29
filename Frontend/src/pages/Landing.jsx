@@ -114,10 +114,10 @@ export default function Landing() {
     }
     if (isPro) {
       setShowAlreadyPro(true);
-      setTimeout(() => { setShowAlreadyPro(false); navigate('/chat'); }, 2500);
+      setTimeout(() => { setShowAlreadyPro(false); navigate('/home'); }, 2500);
       return;
     }
-    startUpgrade(() => navigate('/chat'));
+    startUpgrade(() => navigate('/home'));
   };
 
   return (

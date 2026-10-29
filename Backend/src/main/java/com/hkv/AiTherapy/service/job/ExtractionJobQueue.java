@@ -35,13 +35,32 @@ public class ExtractionJobQueue {
                 INSERT INTO extraction_jobs
                     (id,user_id,conversation_id,purpose,source_revision,policy_version,status,max_attempts)
                 VALUES (?,?,?,'SESSION_SUMMARY',?,?,'QUEUED',?)
-                ON CONFLICT (conversation_id,purpose,source_revision) DO NOTHING
+                ON CONFLICT DO NOTHING
                 """, jobId, userId, conversationId, sourceRevision, policyVersion, maxAttempts);
         if (inserted == 1) return jobId;
         return jdbc.queryForObject("""
                 SELECT id FROM extraction_jobs
                  WHERE conversation_id=? AND purpose='SESSION_SUMMARY' AND source_revision=?
                 """, UUID.class, conversationId, sourceRevision);
+    }
+
+    /** One durable refresh per message snapshot; repeated clicks reuse the same job. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UUID enqueueRefresh(UUID userId, UUID conversationId, long sourceRevision, UUID sourceMessageId) {
+        UUID jobId = UUID.randomUUID();
+        int inserted = jdbc.update("""
+                INSERT INTO extraction_jobs
+                    (id,user_id,conversation_id,purpose,source_revision,source_message_id,
+                     policy_version,status,max_attempts)
+                VALUES (?,?,?,'PROFILE_REFRESH',?, ?,?,'QUEUED',?)
+                ON CONFLICT DO NOTHING
+                """, jobId, userId, conversationId, sourceRevision, sourceMessageId, policyVersion, maxAttempts);
+        if (inserted == 1) return jobId;
+        return jdbc.queryForObject("""
+                SELECT id FROM extraction_jobs
+                 WHERE conversation_id=? AND purpose='PROFILE_REFRESH'
+                   AND source_revision=? AND source_message_id=?
+                """, UUID.class, conversationId, sourceRevision, sourceMessageId);
     }
 
     @Transactional

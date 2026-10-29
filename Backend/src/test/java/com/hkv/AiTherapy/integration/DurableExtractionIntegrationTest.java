@@ -122,6 +122,32 @@ class DurableExtractionIntegrationTest {
     }
 
     @Test
+    void activeRefreshUsesClickTimeSnapshotAndKeepsConversationOpen() {
+        Fixture fixture = completedConversation();
+        UUID jobId = chat.requestProfileRefresh(fixture.user().getId(), fixture.conversation().getId());
+        assertEquals(jobId, chat.requestProfileRefresh(fixture.user().getId(), fixture.conversation().getId()));
+        assertEquals("active", conversations.findById(fixture.conversation().getId()).orElseThrow().getStatus());
+        assertEquals("PROFILE_REFRESH", jobs.findById(jobId).orElseThrow().getPurpose());
+        assertEquals(fixture.message().getId(), jobs.findById(jobId).orElseThrow().getSourceMessageId());
+
+        messages.saveAndFlush(Message.builder().conversation(fixture.conversation()).role("user")
+                .content("This was shared after requesting the refresh.").tokenCount(12).build());
+        when(gateway.generate(any(), any())).thenAnswer(invocation -> {
+            var resolved = (com.hkv.AiTherapy.service.ai.routing.ResolvedGeneration) invocation.getArgument(0);
+            assertFalse(resolved.messages().toString().contains("shared after requesting"));
+            return result(validOutput(fixture.message()));
+        });
+        assertTrue(processor.processOne());
+
+        assertEquals("COMPLETED", jobs.findById(jobId).orElseThrow().getStatus());
+        assertEquals("active", conversations.findById(fixture.conversation().getId()).orElseThrow().getStatus());
+        assertNull(conversations.findById(fixture.conversation().getId()).orElseThrow().getSessionSummary());
+        assertEquals(1, profileCandidates.countByUserIdAndStatus(fixture.user().getId(), "pending"));
+        assertEquals(1, memories.countByUserIdAndStatus(fixture.user().getId(), "pending"));
+        assertNotEquals(jobId, chat.requestProfileRefresh(fixture.user().getId(), fixture.conversation().getId()));
+    }
+
+    @Test
     void invalidEvidenceRetriesThenExhaustsAndOperatorReplayCanRecover() {
         Fixture fixture = completedConversation();
         chat.endSession(fixture.user().getId(), fixture.conversation().getId());

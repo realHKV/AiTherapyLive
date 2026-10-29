@@ -23,6 +23,21 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     /** Stable newest-first page for context assembly, including deterministic timestamp ties. */
     List<Message> findByConversationIdOrderByCreatedAtDescIdDesc(UUID conversationId, Pageable pageable);
 
+    java.util.Optional<Message> findFirstByConversationIdAndRoleOrderByCreatedAtDescIdDesc(UUID conversationId, String role);
+    java.util.Optional<Message> findFirstByConversationIdOrderByCreatedAtDescIdDesc(UUID conversationId);
+
+    @Query(value = """
+            SELECT message.* FROM messages message
+            JOIN messages cutoff ON cutoff.id = :sourceMessageId
+            WHERE message.conversation_id = :conversationId
+              AND cutoff.conversation_id = :conversationId
+              AND (message.created_at, message.id) <= (cutoff.created_at, cutoff.id)
+            ORDER BY message.created_at DESC, message.id DESC
+            LIMIT 200
+            """, nativeQuery = true)
+    List<Message> findSnapshotThroughMessage(@Param("conversationId") UUID conversationId,
+                                             @Param("sourceMessageId") UUID sourceMessageId);
+
     /**
      * Cursor-based pagination: messages after a given message ID.
      * Used by GET /chat/sessions/{id}/messages for efficient scrolling.

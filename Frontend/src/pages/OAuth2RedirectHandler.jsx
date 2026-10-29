@@ -35,9 +35,9 @@ export default function OAuth2RedirectHandler() {
           if (isNewUser) {
             navigate('/about-you', { replace: true });
           } else if (pendingUpgrade) {
-            navigate('/chat', { replace: true, state: { showUpgrade: true } });
+            navigate('/home', { replace: true, state: { showUpgrade: true } });
           } else {
-            navigate('/chat', { replace: true });
+            navigate('/home', { replace: true });
           }
         })
         .catch((err) => {

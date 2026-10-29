@@ -84,6 +84,9 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
 
         <div className="px-4 md:px-6 py-4 md:py-6 space-y-6">
 
+          <ProfileSuggestionReview isOpen={isOpen} refreshKey={profileReviewKey} onProfileChanged={onProfileChanged} />
+          <MemoryReview isOpen={isOpen} refreshKey={profileReviewKey} />
+
           {/* Identity Section */}
           <section>
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50 mb-4 flex items-center gap-2">
@@ -158,9 +161,6 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
               )}
             </div>
           </section>
-
-          <ProfileSuggestionReview isOpen={isOpen} refreshKey={profileReviewKey} onProfileChanged={onProfileChanged} />
-          <MemoryReview isOpen={isOpen} refreshKey={profileReviewKey} />
 
           {/* Preferences */}
           <section>

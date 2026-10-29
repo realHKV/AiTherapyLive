@@ -18,6 +18,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [responsePhase, setResponsePhase] = useState('thinking');
   const [chatError, setChatError] = useState('');
   const [chatBlocked, setChatBlocked] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -157,39 +158,33 @@ export default function Chat() {
 
   const handleRefreshProfile = async () => {
     if (!sessionId || isRefreshingProfile || isTyping || isSessionStarting) return;
-    const finishedSessionId = sessionId;
+    const currentSessionId = sessionId;
     setIsRefreshingProfile(true);
     setChatError('');
-    setProfileUpdateNotice('Saving this session and preparing profile suggestions...');
+    setProfileUpdateNotice('Looking for important details to save from this conversation...');
     try {
-      const started = await chatAPI.refreshProfileMidSession(finishedSessionId);
-      setIsSessionStarting(true);
-      setLoadingMessage('Starting a new session...');
-      setSessionId(null);
-      setMessages([]);
-      setChatBlocked(false);
-      const nextSession = await chatAPI.createSession();
-      if (!nextSession?.id) throw new Error('Could not start a new session. Please refresh the page.');
-      setSessionId(nextSession.id);
-      setMessages(nextSession.recentMessages || []);
-      setIsSessionStarting(false);
-      refreshUsage();
-
+      const started = await chatAPI.refreshProfileMidSession(currentSessionId);
       let status = started?.status;
+      const jobId = started?.jobId;
       for (let attempt = 0; attempt < 45 && status !== 'COMPLETED' && status !== 'FAILED' && status !== 'SUPERSEDED' && status !== 'NOT_QUEUED'; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
-        status = (await chatAPI.getExtractionStatus(finishedSessionId)).status;
+        status = (await chatAPI.getExtractionStatus(currentSessionId, jobId)).status;
       }
       if (status === 'COMPLETED') {
-        const updated = await profileAPI.getProfile();
+        const [updated, profileSuggestions, memorySuggestions] = await Promise.all([
+          profileAPI.getProfile(), profileAPI.getProfileCandidates(), profileAPI.getCandidates({ offset: 0, limit: 1 }),
+        ]);
         if (updated) setProfile(updated);
         setProfileReviewKey(key => key + 1);
         setIsProfileOpen(true);
-        setProfileUpdateNotice('Your profile suggestions are ready. Review and apply the ones you want to keep.');
+        const count = (profileSuggestions?.length || 0) + (memorySuggestions?.total || 0);
+        setProfileUpdateNotice(count > 0
+          ? `${count} profile or memory suggestion${count === 1 ? '' : 's'} available to review. Apply the ones you want to keep.`
+          : 'No lasting personal details were identified in this conversation yet. You can add a memory yourself in Profile.');
       } else if (status === 'NOT_QUEUED') {
-        setProfileUpdateNotice('There was no eligible chat content to add to your profile in that session.');
+        setProfileUpdateNotice('Share something in this conversation first, then try updating your profile.');
       } else if (status === 'FAILED' || status === 'SUPERSEDED') {
-        setProfileUpdateNotice('Profile suggestions could not be prepared from that session. You can keep chatting and try again later.');
+        setProfileUpdateNotice('Profile suggestions could not be prepared. Your chat is still here; try again later.');
       } else {
         setProfileUpdateNotice('Profile suggestions are still processing. Open your profile and refresh suggestions in a moment.');
       }
@@ -197,14 +192,13 @@ export default function Chat() {
       setChatError(e.response?.data?.error?.message || e.message || 'Could not update your profile. Please try again.');
       setProfileUpdateNotice('');
     } finally {
-      setIsSessionStarting(false);
       setIsRefreshingProfile(false);
     }
   };
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !sessionId || isTyping || chatBlocked) return;
+    if (!input.trim() || !sessionId || isTyping || isRefreshingProfile || chatBlocked) return;
     const userMsg = { id: Date.now(), senderRole: 'USER', content: input };
     const streamMessageId = crypto.randomUUID();
     const controller = new AbortController();
@@ -213,6 +207,7 @@ export default function Chat() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
+    setResponsePhase('thinking');
     try {
       const response = await chatAPI.createStreamSource(sessionId, userMsg.content, { signal: controller.signal });
       let sawDelta = false;
@@ -226,6 +221,7 @@ export default function Chat() {
             ? { ...message, id: data.userMessageId } : message));
         } else if (name === 'delta') {
           sawDelta = true;
+          setResponsePhase('responding');
           setMessages(prev => {
             const existing = prev.findIndex(message => message.id === streamMessageId);
             if (existing === -1) return [...prev, { id: streamMessageId, senderRole: 'ASSISTANT', content: data.text, isStreaming: true }];
@@ -293,6 +289,7 @@ export default function Chat() {
     } finally {
       if (activeStreamRef.current === controller) activeStreamRef.current = null;
       setIsTyping(false);
+      setResponsePhase('thinking');
       refreshUsage();
     }
   };
@@ -343,7 +340,7 @@ export default function Chat() {
         <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
           {/* Logo + session info */}
           <div className="flex items-center gap-4">
-            <span className="text-xl font-bold tracking-tight text-primary font-headline">TrustTherapy.ai</span>
+            <button type="button" onClick={() => navigate('/home')} className="text-xl font-bold tracking-tight text-primary font-headline" title="Back to your overview">TrustTherapy.ai</button>
             <div className="hidden md:flex items-center gap-2 glass-morphism rounded-full px-4 py-1.5 border border-outline-variant/10">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-on-surface-variant tracking-wide font-medium">Session Active</span>
@@ -362,7 +359,7 @@ export default function Chat() {
               <button
                 onClick={handleRefreshProfile}
                 disabled={isRefreshingProfile || isTyping}
-                title="Finish this session and prepare profile suggestions for review"
+                title="Find important profile and memory suggestions without ending this chat"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all disabled:opacity-50 disabled:cursor-wait"
               >
                 <span className="text-sm">🔃</span>
@@ -424,7 +421,7 @@ export default function Chat() {
                   disabled={isRefreshingProfile || isTyping}
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container-low hover:bg-primary/5 text-primary text-sm font-semibold text-left transition-colors border border-outline-variant/10"
                 >
-                  <span className="text-lg">🔃</span> Finish session & update profile
+                  <span className="text-lg">🔃</span> Update Profile
                 </button>
                 <button
                   onClick={() => { handleOpenProfile(); setIsMobileMenuOpen(false); }}
@@ -506,14 +503,10 @@ export default function Chat() {
                 </div>
               ))}
 
-              {/* Typing indicator */}
+              {/* Response progress */}
               {isTyping && (
-                <div className="flex items-center gap-2 ml-2 mr-auto">
-                  <div className="flex gap-1.5 px-4 py-3 rounded-full glass-morphism border border-outline-variant/10">
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: '-0.3s' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: '-0.15s' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" />
-                  </div>
+                <div role="status" aria-live="polite" className="ml-2 mr-auto rounded-xl glass-morphism border border-outline-variant/10 px-4 py-3 text-sm text-on-surface-variant">
+                  AI Guide is {responsePhase === 'thinking' ? 'thinking about your message' : 'responding'}
                 </div>
               )}
 
@@ -535,12 +528,12 @@ export default function Chat() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Share your thoughts..."
-                    disabled={isTyping || chatBlocked || !sessionId}
+                    disabled={isTyping || isRefreshingProfile || chatBlocked || !sessionId}
                     className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-3 md:px-4 font-medium text-[15px] md:text-base disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || isTyping || chatBlocked || !sessionId}
+                    disabled={!input.trim() || isTyping || isRefreshingProfile || chatBlocked || !sessionId}
                     className="h-10 md:h-11 px-5 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     Send
@@ -571,7 +564,7 @@ export default function Chat() {
               onClick={handleRefreshProfile}
               disabled={isRefreshingProfile || isTyping}
               className="w-12 h-12 flex items-center justify-center rounded-2xl glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-secondary transition-all hover:scale-110 group relative disabled:opacity-50"
-              title="Finish this session and prepare profile suggestions for review"
+              title="Find important profile and memory suggestions without ending this chat"
             >
               🔃
               <span className="absolute right-full mr-3 px-3 py-1 rounded bg-surface-container-high text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Update Profile</span>

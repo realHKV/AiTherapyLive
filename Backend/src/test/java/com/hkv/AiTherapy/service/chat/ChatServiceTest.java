@@ -116,6 +116,27 @@ class ChatServiceTest {
     }
 
     @Test
+    void profileRefreshQueuesCurrentMessageWithoutEndingSession() {
+        UUID messageId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Message message = Message.builder().id(messageId).conversation(testConversation).role("user")
+                .content("I am studying nursing.").build();
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
+        when(messageRepository.findFirstByConversationIdAndRoleOrderByCreatedAtDescIdDesc(conversationId, "user"))
+                .thenReturn(Optional.of(message));
+        when(messageRepository.findFirstByConversationIdOrderByCreatedAtDescIdDesc(conversationId))
+                .thenReturn(Optional.of(message));
+        when(extractionJobQueue.enqueueRefresh(userId, conversationId, testUser.getContextRevision(), messageId))
+                .thenReturn(jobId);
+
+        assertEquals(jobId, chatService.requestProfileRefresh(userId, conversationId));
+        assertEquals("active", testConversation.getStatus());
+        verifyNoInteractions(therapyProfileRepository, eventPublisher);
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
     void anotherUserCannotSendMessageToConversation() {
         when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
         ChatMessageRequest request = new ChatMessageRequest();

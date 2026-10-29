@@ -23,12 +23,14 @@ export const chatAPI = {
     return response;
   },
 
-  // Finish the session and queue reviewable profile suggestions
+  // Queue a snapshot of the active session for reviewable suggestions
   refreshProfileMidSession: async (sessionId) => {
     const response = await apiClient.post(`/chat/sessions/${sessionId}/refresh-profile`);
     return response;
   },
-  getExtractionStatus: (sessionId) => apiClient.get(`/chat/sessions/${sessionId}/extraction-status`),
+  getExtractionStatus: (sessionId, jobId) => apiClient.get(`/chat/sessions/${sessionId}/extraction-status`, {
+    params: { jobId },
+  }),
 
   getRequestStatus: (requestId) => apiClient.get(`/chat/requests/${requestId}`),
 

@@ -79,16 +79,17 @@ public class ChatController {
     public ResponseEntity<ApiResponse<ExtractionStatus>> refreshProfileMidSession(@AuthenticationPrincipal String userId,
                                                                       @PathVariable UUID sessionId) {
         UUID owner = UUID.fromString(userId);
-        ownedConversation(owner, sessionId);
-        chatService.endSession(owner, sessionId);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(extractionStatus(sessionId)));
+        UUID jobId = chatService.requestProfileRefresh(owner, sessionId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(extractionStatus(owner, sessionId, jobId)));
     }
 
     @GetMapping("/{sessionId}/extraction-status")
     public ResponseEntity<ApiResponse<ExtractionStatus>> extractionStatus(@AuthenticationPrincipal String userId,
-                                                                           @PathVariable UUID sessionId) {
-        ownedConversation(UUID.fromString(userId), sessionId);
-        return ResponseEntity.ok(ApiResponse.success(extractionStatus(sessionId)));
+                                                                           @PathVariable UUID sessionId,
+                                                                           @RequestParam UUID jobId) {
+        UUID owner = UUID.fromString(userId);
+        ownedConversation(owner, sessionId);
+        return ResponseEntity.ok(ApiResponse.success(extractionStatus(owner, sessionId, jobId)));
     }
 
     private void ownedConversation(UUID userId, UUID sessionId) {
@@ -98,13 +99,16 @@ public class ChatController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
     }
 
-    private ExtractionStatus extractionStatus(UUID sessionId) {
-        return extractionJobs.findFirstByConversationIdOrderByCreatedAtDesc(sessionId)
-                .map(job -> new ExtractionStatus(job.getStatus()))
-                .orElseGet(() -> new ExtractionStatus("NOT_QUEUED"));
+    private ExtractionStatus extractionStatus(UUID userId, UUID sessionId, UUID jobId) {
+        if (jobId == null) return new ExtractionStatus(null, "NOT_QUEUED");
+        var job = extractionJobs.findById(jobId)
+                .filter(value -> value.getUser().getId().equals(userId)
+                        && value.getConversation().getId().equals(sessionId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Extraction job not found"));
+        return new ExtractionStatus(jobId, job.getStatus());
     }
 
-    public record ExtractionStatus(String status) { }
+    public record ExtractionStatus(UUID jobId, String status) { }
 
     @PostMapping(value = "/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> streamMessage(

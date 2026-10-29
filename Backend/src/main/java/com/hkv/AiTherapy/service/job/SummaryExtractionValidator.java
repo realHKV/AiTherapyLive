@@ -42,41 +42,50 @@ public class SummaryExtractionValidator {
         List<SummaryExtraction.TraitExtraction> traits = extraction.getTraits() == null ? List.of() : extraction.getTraits();
         List<SummaryExtraction.MemoryExtraction> memories = extraction.getMemories() == null ? List.of() : extraction.getMemories();
         if (profiles.size() > 10 || traits.size() > 3 || memories.size() > 20) throw invalid();
+        int rejected = 0;
 
         for (SummaryExtraction.ProfileCandidateExtraction candidate : profiles) {
-            String field = candidate == null || candidate.getField() == null ? "" : candidate.getField().trim().toLowerCase(Locale.ROOT);
-            int max = "name".equals(field) ? 100 : 50;
-            if (!PROFILE_FIELDS.contains(field) || blank(candidate.getValue()) || candidate.getValue().length() > max
-                    || !fields.add(field)) throw invalid();
-            candidates.add(new ValidatedCandidate(outputIndex++, field, candidate.getValue().trim(),
-                    evidence(candidate.getSourceMessageId(), candidate.getEvidence(), userMessages)));
+            try {
+                String field = candidate == null || candidate.getField() == null ? "" : candidate.getField().trim().toLowerCase(Locale.ROOT);
+                int max = "name".equals(field) ? 100 : 50;
+                if (!PROFILE_FIELDS.contains(field) || blank(candidate.getValue()) || candidate.getValue().length() > max)
+                    throw invalid();
+                Evidence proof = evidence(candidate.getSourceMessageId(), candidate.getEvidence(), userMessages);
+                if (!fields.add(field)) throw invalid();
+                candidates.add(new ValidatedCandidate(outputIndex++, field, candidate.getValue().trim(), proof));
+            } catch (IllegalArgumentException ignored) { rejected++; }
         }
         for (SummaryExtraction.TraitExtraction trait : traits) {
-            if (trait == null || blank(trait.getKey()) || trait.getKey().trim().length() > 80
-                    || blank(trait.getValue()) || trait.getValue().length() > 500 || trait.getConfidence() == null
-                    || !Double.isFinite(trait.getConfidence()) || trait.getConfidence() < 0 || trait.getConfidence() > 1)
-                throw invalid();
-            String field = "trait:" + trait.getKey().trim().toLowerCase(Locale.ROOT);
-            if (!fields.add(field)) throw invalid();
-            candidates.add(new ValidatedCandidate(outputIndex++, field,
-                    trait.getKey().trim() + ": " + trait.getValue().trim(), trait.getConfidence(),
-                    evidence(trait.getSourceMessageId(), trait.getEvidence(), userMessages)));
+            try {
+                if (trait == null || blank(trait.getKey()) || trait.getKey().trim().length() > 80
+                        || blank(trait.getValue()) || trait.getValue().length() > 500 || trait.getConfidence() == null
+                        || !Double.isFinite(trait.getConfidence()) || trait.getConfidence() < 0 || trait.getConfidence() > 1)
+                    throw invalid();
+                String field = "trait:" + trait.getKey().trim().toLowerCase(Locale.ROOT);
+                Evidence proof = evidence(trait.getSourceMessageId(), trait.getEvidence(), userMessages);
+                if (!fields.add(field)) throw invalid();
+                candidates.add(new ValidatedCandidate(outputIndex++, field,
+                        trait.getKey().trim() + ": " + trait.getValue().trim(), trait.getConfidence(), proof));
+            } catch (IllegalArgumentException ignored) { rejected++; }
         }
         for (SummaryExtraction.MemoryExtraction memory : memories) {
-            if (memory == null || blank(memory.getTitle()) || memory.getTitle().trim().length() > 200
-                    || (memory.getDetail() != null && memory.getDetail().length() > 2000)
-                    || !MEMORY_TYPES.contains(memory.getType()) || memory.getImportance() < 1 || memory.getImportance() > 10)
-                throw invalid();
-            LocalDate followUp = null;
-            if (!blank(memory.getFollowUpAt())) {
-                try { followUp = LocalDate.parse(memory.getFollowUpAt()); }
-                catch (RuntimeException e) { throw invalid(); }
-            }
-            candidates.add(new ValidatedCandidate(outputIndex++, "memory", memory.getTitle().trim(),
-                    null, evidence(memory.getSourceMessageId(), memory.getEvidence(), userMessages),
-                    memory.getType().equals("event") ? "life_event" : memory.getType(),
-                    blank(memory.getDetail()) ? null : memory.getDetail().trim(), memory.getImportance(), followUp));
+            try {
+                if (memory == null || blank(memory.getTitle()) || memory.getTitle().trim().length() > 200
+                        || (memory.getDetail() != null && memory.getDetail().length() > 2000)
+                        || !MEMORY_TYPES.contains(memory.getType()) || memory.getImportance() < 1 || memory.getImportance() > 10)
+                    throw invalid();
+                LocalDate followUp = null;
+                if (!blank(memory.getFollowUpAt())) {
+                    try { followUp = LocalDate.parse(memory.getFollowUpAt()); }
+                    catch (RuntimeException invalidDate) { throw invalid(); }
+                }
+                Evidence proof = evidence(memory.getSourceMessageId(), memory.getEvidence(), userMessages);
+                candidates.add(new ValidatedCandidate(outputIndex++, "memory", memory.getTitle().trim(),
+                        null, proof, memory.getType().equals("event") ? "life_event" : memory.getType(),
+                        blank(memory.getDetail()) ? null : memory.getDetail().trim(), memory.getImportance(), followUp));
+            } catch (IllegalArgumentException ignored) { rejected++; }
         }
+        if (rejected > 0 && candidates.isEmpty()) throw invalid();
         return new ValidatedExtraction(extraction.getSummary().trim(), List.copyOf(candidates));
     }
 

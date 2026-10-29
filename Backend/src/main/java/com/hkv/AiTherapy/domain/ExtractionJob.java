@@ -38,6 +38,9 @@ public class ExtractionJob {
     @Column(name = "source_revision", nullable = false, updatable = false)
     private long sourceRevision;
 
+    @Column(name = "source_message_id", updatable = false)
+    private UUID sourceMessageId;
+
     @Column(name = "policy_version", nullable = false, length = 100, updatable = false)
     private String policyVersion;
 

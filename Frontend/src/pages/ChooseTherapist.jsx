@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { profileAPI } from '../api/profile';
 import { useSubscription } from '../context/subscriptionStore';
 
@@ -129,8 +129,9 @@ function TherapistCard({ therapist, selected, onSelect }) {
 
 export default function ChooseTherapist() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { startUpgrade, upgradeLoading, upgradeError } = useSubscription();
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(location.state?.currentGuide || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showPlanStep, setShowPlanStep] = useState(false);
@@ -141,7 +142,8 @@ export default function ChooseTherapist() {
     setError(null);
     try {
       await profileAPI.saveTherapist(selected);
-      setShowPlanStep(true); // Show plan selection instead of navigating
+      if (location.state?.fromHome) navigate('/home', { replace: true });
+      else setShowPlanStep(true);
     } catch {
       setError('Could not save your selection. Please try again.');
     } finally {
@@ -150,10 +152,10 @@ export default function ChooseTherapist() {
   };
 
   const handleChooseFree = () => {
-    navigate('/chat');
+    navigate('/home');
   };
 
-  const handleChoosePro = () => startUpgrade(() => navigate('/chat'));
+  const handleChoosePro = () => startUpgrade(() => navigate('/home'));
 
   return (
     <div className="min-h-screen bg-background text-on-surface relative overflow-hidden dark">

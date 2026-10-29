@@ -312,6 +312,25 @@ public class ChatService {
         eventPublisher.publishEvent(new ConversationEndedEvent(userId, conversationId));
     }
 
+    /** Queues a stable snapshot without completing or replacing the active conversation. */
+    @Transactional
+    public UUID requestProfileRefresh(UUID userId, UUID conversationId) {
+        User user = userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found"));
+        if (!conversation.getUser().getId().equals(userId) || !"active".equals(conversation.getStatus())
+                || !conversation.isContextEligible())
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active conversation not found");
+        if (messageRepository.findFirstByConversationIdAndRoleOrderByCreatedAtDescIdDesc(conversationId, "user").isEmpty())
+            return null;
+        return messageRepository.findFirstByConversationIdOrderByCreatedAtDescIdDesc(conversationId)
+                .map(message -> extractionJobQueue.enqueueRefresh(userId, conversationId,
+                        user.getContextRevision(), message.getId()))
+                .orElse(null);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /** Returns true if the user has an active PRO subscription. */

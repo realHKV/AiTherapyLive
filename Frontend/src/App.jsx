@@ -9,6 +9,8 @@ import DemoScheduleBanner from './components/DemoScheduleBanner';
 const Landing = lazy(() => import('./pages/Landing'));
 const AboutYou = lazy(() => import('./pages/AboutYou'));
 const ChooseTherapist = lazy(() => import('./pages/ChooseTherapist'));
+const Home = lazy(() => import('./pages/Home'));
+const Memories = lazy(() => import('./pages/Memories'));
 const Chat = lazy(() => import('./pages/Chat'));
 const OAuth2RedirectHandler = lazy(() => import('./pages/OAuth2RedirectHandler'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -31,7 +33,7 @@ const ProtectedRoute = ({ children }) => {
 const AuthRedirectRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <RouteLoading />;
-  return isAuthenticated ? <Navigate to="/chat" replace /> : children;
+  return isAuthenticated ? <Navigate to="/home" replace /> : children;
 };
 
 function App() {
@@ -56,6 +58,8 @@ function App() {
           <Route path="/choose-therapist" element={<ProtectedRoute><ChooseTherapist /></ProtectedRoute>} />
 
           {/* App (protected) */}
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/memories" element={<ProtectedRoute><Memories /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
 
           {/* Fallback */}

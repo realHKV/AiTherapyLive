@@ -49,7 +49,7 @@ export default function ProfileSuggestionReview({ isOpen, refreshKey, onProfileC
         <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50">Profile suggestions</h3>
         <button onClick={reload} disabled={loading || !!busy} className="text-xs text-primary hover:underline disabled:opacity-50">Refresh</button>
       </div>
-      <p className="text-xs text-on-surface-variant">Insights from chat appear here after a session is saved. Nothing changes until you apply a suggestion.</p>
+      <p className="text-xs text-on-surface-variant">Insights from chat appear here after you update your profile. Review each suggestion before adding it to your profile.</p>
       {error && <p role="alert" className="text-xs text-error">{error}</p>}
       {loading && <p className="text-xs text-on-surface-variant">Loading suggestions...</p>}
       {!loading && suggestions.length === 0 && <p className="text-xs text-on-surface-variant">No profile suggestions to review.</p>}

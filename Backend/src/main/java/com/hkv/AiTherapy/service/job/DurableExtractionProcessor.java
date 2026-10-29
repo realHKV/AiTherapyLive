@@ -120,20 +120,28 @@ public class DurableExtractionProcessor {
             }
             User user = users.findById(job.getUser().getId()).orElse(null);
             Conversation conversation = conversations.findById(job.getConversation().getId()).orElse(null);
+            boolean refresh = "PROFILE_REFRESH".equals(job.getPurpose());
             if (user == null || !user.isActive() || conversation == null || !conversation.isContextEligible()
-                    || !"completed".equals(conversation.getStatus())
+                    || !(refresh ? ("active".equals(conversation.getStatus()) || "completed".equals(conversation.getStatus()))
+                               : "completed".equals(conversation.getStatus()))
                     || user.getContextRevision() != job.getSourceRevision()) {
                 supersede(jobId);
                 return null;
             }
-            List<Message> recent = messages.findByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId(),
-                    org.springframework.data.domain.PageRequest.of(0, MAX_TRANSCRIPT_MESSAGES));
+            List<Message> recent = refresh
+                    ? messages.findSnapshotThroughMessage(conversation.getId(), job.getSourceMessageId())
+                    : messages.findByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId(),
+                            org.springframework.data.domain.PageRequest.of(0, MAX_TRANSCRIPT_MESSAGES));
+            if (refresh && recent.stream().noneMatch(message -> message.getId().equals(job.getSourceMessageId()))) {
+                supersede(jobId);
+                return null;
+            }
             Collections.reverse(recent);
             List<MessageSnapshot> transcript = boundTranscript(recent.stream()
                     .filter(message -> "user".equals(message.getRole()) || "assistant".equals(message.getRole()))
                     .map(message -> new MessageSnapshot(message.getId(), message.getRole(), message.getContent()))
                     .toList());
-            return new Snapshot(jobId, user.getId(), conversation.getId(), job.getSourceRevision(),
+            return new Snapshot(jobId, user.getId(), conversation.getId(), job.getSourceRevision(), refresh,
                     job.getReplayCount(), transcript);
         });
     }
@@ -184,7 +192,10 @@ public class DurableExtractionProcessor {
                 + "Each candidate must include sourceMessageId and evidence. sourceMessageId must be a UUID shown in the transcript; evidence must be an exact short quote from that user's message. "
                 + "profileCandidates entries use field name, age_range, or gender and a value explicitly stated by the user. "
                 + "traits entries use key, value, confidence from 0 to 1. memories use type fact|life_event|goal|relationship|preference, title, optional detail, importance 1..10, optional followUpAt ISO date. "
-                + "Do not infer personal facts. Do not include a candidate without direct user-message evidence. Limit summary to 2 sentences, traits to 3, memories to 20.";
+                + "Select only durable, meaningful details the user may want remembered: stated history, relationships, goals and preferences. "
+                + "A temporary mood alone is not a lasting trait. Traits may describe tentative patterns or preferences supported by the user's words, "
+                + "but never diagnose or claim certainty. Do not invent personal facts. Do not include a candidate without direct user-message evidence. "
+                + "Use an empty list when no supported detail fits. Limit summary to 2 sentences, traits to 3, memories to 20.";
         StringBuilder transcript = new StringBuilder();
         for (MessageSnapshot message : source) {
             String line = "[message " + message.id() + " " + message.role().toUpperCase() + "] " + message.content() + "\n";
@@ -205,16 +216,20 @@ public class DurableExtractionProcessor {
             ExtractionJob job = jobs.findByIdForUpdate(snapshot.jobId()).orElse(null);
             if (job == null || !"RUNNING".equals(job.getStatus()) || !workerId.equals(job.getClaimedBy())) return false;
             boolean eligible = user != null && user.isActive() && user.getContextRevision() == snapshot.sourceRevision()
-                    && conversation != null && conversation.isContextEligible() && "completed".equals(conversation.getStatus());
+                    && conversation != null && conversation.isContextEligible()
+                    && (snapshot.refresh() ? ("active".equals(conversation.getStatus()) || "completed".equals(conversation.getStatus()))
+                                           : "completed".equals(conversation.getStatus()));
             if (!eligible) {
                 job.setStatus("SUPERSEDED"); job.setLastErrorCode("CONTEXT_CHANGED"); finish(job, requestId);
                 accounting.settle(requestId, result.usage().inputTokens(), result.usage().outputTokens(), "COMPLETED", null);
                 if (operationalMetrics != null) operationalMetrics.extractionTransition("superseded");
                 return false;
             }
-            conversation.setSessionSummary(extraction.summary());
-            conversation.setSummaryRevision(snapshot.sourceRevision());
-            conversation.setSummarizedAt(Instant.now());
+            if (!snapshot.refresh()) {
+                conversation.setSessionSummary(extraction.summary());
+                conversation.setSummaryRevision(snapshot.sourceRevision());
+                conversation.setSummarizedAt(Instant.now());
+            }
             for (SummaryExtractionValidator.ValidatedCandidate candidate : extraction.candidates())
                 persistCandidate(job, user, conversation, candidate, snapshot.sourceRevision());
             job.setStatus("COMPLETED"); job.setLastErrorCode(null); finish(job, requestId);
@@ -253,12 +268,15 @@ public class DurableExtractionProcessor {
             if (job == null || !"RUNNING".equals(job.getStatus()) || !workerId.equals(job.getClaimedBy())) return;
             if (user == null || !user.isActive() || user.getContextRevision() != snapshot.sourceRevision()
                     || conversation == null || !conversation.isContextEligible()
-                    || !"completed".equals(conversation.getStatus())) {
+                    || !(snapshot.refresh() ? ("active".equals(conversation.getStatus()) || "completed".equals(conversation.getStatus()))
+                                           : "completed".equals(conversation.getStatus()))) {
                 job.setStatus("SUPERSEDED"); job.setLastErrorCode("CONTEXT_CHANGED"); finish(job, null);
                 return;
             }
-            conversation.setSummarizedAt(Instant.now());
-            conversation.setSummaryRevision(snapshot.sourceRevision());
+            if (!snapshot.refresh()) {
+                conversation.setSummarizedAt(Instant.now());
+                conversation.setSummaryRevision(snapshot.sourceRevision());
+            }
             job.setStatus("COMPLETED"); job.setLastErrorCode(null); finish(job, null);
             if (operationalMetrics != null) operationalMetrics.extractionTransition("completed");
         });
@@ -320,7 +338,8 @@ public class DurableExtractionProcessor {
         return List.copyOf(selectedNewestFirst);
     }
 
-    private record Snapshot(UUID jobId, UUID userId, UUID conversationId, long sourceRevision, int replayCount,
+    private record Snapshot(UUID jobId, UUID userId, UUID conversationId, long sourceRevision, boolean refresh,
+                            int replayCount,
                             List<MessageSnapshot> messages) { }
     private record MessageSnapshot(UUID id, String role, String content) {
         Message toMessage() { return Message.builder().id(id).role(role).content(content).build(); }

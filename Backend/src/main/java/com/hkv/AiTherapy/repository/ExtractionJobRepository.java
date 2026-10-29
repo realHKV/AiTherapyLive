@@ -12,7 +12,6 @@ import java.util.UUID;
 
 public interface ExtractionJobRepository extends JpaRepository<ExtractionJob, UUID> {
     Optional<ExtractionJob> findByIdAndClaimedByAndStatus(UUID id, UUID claimedBy, String status);
-    Optional<ExtractionJob> findFirstByConversationIdOrderByCreatedAtDesc(UUID conversationId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT j FROM ExtractionJob j WHERE j.id = :id")
