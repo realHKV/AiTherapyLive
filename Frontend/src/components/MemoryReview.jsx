@@ -5,7 +5,7 @@ const PAGE_SIZE = 20;
 const TYPES = ['life_event', 'goal', 'relationship', 'preference', 'fact'];
 const label = value => value.replaceAll('_', ' ');
 
-export default function MemoryReview({ isOpen }) {
+export default function MemoryReview({ isOpen, refreshKey }) {
   const [candidates, setCandidates] = useState([]);
   const [candidateTotal, setCandidateTotal] = useState(0);
   const [memories, setMemories] = useState([]);
@@ -36,7 +36,7 @@ export default function MemoryReview({ isOpen }) {
     }
   }, []);
 
-  useEffect(() => { if (isOpen) reload(); }, [isOpen, reload]);
+  useEffect(() => { if (isOpen) reload(); }, [isOpen, refreshKey, reload]);
 
   const loadMore = async (kind) => {
     setBusy(kind);

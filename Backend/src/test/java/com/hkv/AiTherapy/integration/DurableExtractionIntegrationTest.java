@@ -22,6 +22,7 @@ import com.hkv.AiTherapy.service.job.DurableExtractionProcessor;
 import com.hkv.AiTherapy.service.job.ExtractionJobQueue;
 import com.hkv.AiTherapy.service.chat.ChatService;
 import com.hkv.AiTherapy.service.profile.ProfileService;
+import com.hkv.AiTherapy.service.profile.ProfileCandidateService;
 import com.hkv.AiTherapy.repository.AiRequestRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,7 @@ class DurableExtractionIntegrationTest {
     @Autowired TherapyProfileRepository therapyProfiles;
     @Autowired AiRequestRepository requests;
     @Autowired ProfileService profiles;
+    @Autowired ProfileCandidateService candidateService;
     @Autowired AccountService accounts;
 
     @Test
@@ -108,6 +110,12 @@ class DurableExtractionIntegrationTest {
         assertEquals("Discussed the user's education goal.", saved.getSessionSummary());
         assertEquals(1, profileCandidates.countByUserIdAndStatus(fixture.user().getId(), "pending"));
         assertEquals(1, memories.countByUserIdAndStatus(fixture.user().getId(), "pending"));
+        assertNull(profiles.getProfile(fixture.user().getId()).getPreferredName());
+        var suggestion = candidateService.pending(fixture.user().getId()).getFirst();
+        assertEquals("Alex", suggestion.proposedValue());
+        candidateService.accept(fixture.user().getId(), suggestion.id());
+        assertEquals("Alex", profiles.getProfile(fixture.user().getId()).getPreferredName());
+        assertEquals(0, candidateService.pending(fixture.user().getId()).size());
         var request = requests.findAll().stream().filter(value -> value.getUser().getId().equals(fixture.user().getId())).findFirst().orElseThrow();
         assertEquals("COMPLETED", request.getStatus());
         assertEquals("SUMMARY", request.getPurpose());
@@ -193,7 +201,7 @@ class DurableExtractionIntegrationTest {
         therapyProfiles.saveAndFlush(TherapyProfile.builder().user(user).totalSessions(0).build());
         Conversation conversation = conversations.saveAndFlush(Conversation.builder().user(user).status("active").tokenCount(0).build());
         Message message = messages.saveAndFlush(Message.builder().conversation(conversation).role("user")
-                .content("I am working toward finishing my nursing course.").tokenCount(12).build());
+                .content("My name is Alex. I am working toward finishing my nursing course.").tokenCount(16).build());
         return new Fixture(user, conversation, message);
     }
 
@@ -206,7 +214,7 @@ class DurableExtractionIntegrationTest {
     private static String validOutput(Message message) {
         return """
                 {"summary":"Discussed the user's education goal.",
-                 "profileCandidates":[{"field":"name","value":"Alex","sourceMessageId":"%s","evidence":"nursing course"}],
+                 "profileCandidates":[{"field":"name","value":"Alex","sourceMessageId":"%s","evidence":"My name is Alex"}],
                  "traits":[],
                  "memories":[{"type":"goal","title":"Finish nursing course","detail":"A stated education goal.",
                  "importance":7,"followUpAt":"2027-04-01","sourceMessageId":"%s","evidence":"working toward finishing my nursing course"}]}

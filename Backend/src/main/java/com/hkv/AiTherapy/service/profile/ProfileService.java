@@ -147,7 +147,8 @@ public class ProfileService {
         }
 
         List<ProfileResponse.TraitDto> traitDtos = traits.stream()
-                .map(t -> new ProfileResponse.TraitDto(t.getTraitKey(), t.getConfidence(), t.getSource()))
+                .map(t -> new ProfileResponse.TraitDto(t.getTraitKey(), t.getTraitValue(),
+                        t.getConfidence(), t.getSource()))
                 .collect(Collectors.toList());
 
         return ProfileResponse.builder()

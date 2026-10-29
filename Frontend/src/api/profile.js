@@ -25,6 +25,9 @@ export const profileAPI = {
   },
 
   getCandidates: (params = {}) => apiClient.get('/profile/me/memory-candidates', { params }),
+  getProfileCandidates: () => apiClient.get('/profile/me/profile-candidates'),
+  confirmProfileCandidate: (id) => apiClient.post(`/profile/me/profile-candidates/${id}/confirm`),
+  dismissProfileCandidate: (id) => apiClient.delete(`/profile/me/profile-candidates/${id}`),
 
   addMemory: (memory) => apiClient.post('/profile/me/memories', memory),
 

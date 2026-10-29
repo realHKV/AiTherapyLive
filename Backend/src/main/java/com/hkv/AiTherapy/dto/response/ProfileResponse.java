@@ -32,6 +32,7 @@ public class ProfileResponse {
     @NoArgsConstructor
     public static class TraitDto {
         private String key;
+        private String value;
         private double confidence;
         private String source;
     }

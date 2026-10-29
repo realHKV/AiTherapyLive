@@ -23,11 +23,12 @@ export const chatAPI = {
     return response;
   },
 
-  // Sync profile without ending session
+  // Finish the session and queue reviewable profile suggestions
   refreshProfileMidSession: async (sessionId) => {
     const response = await apiClient.post(`/chat/sessions/${sessionId}/refresh-profile`);
     return response;
   },
+  getExtractionStatus: (sessionId) => apiClient.get(`/chat/sessions/${sessionId}/extraction-status`),
 
   getRequestStatus: (requestId) => apiClient.get(`/chat/requests/${requestId}`),
 

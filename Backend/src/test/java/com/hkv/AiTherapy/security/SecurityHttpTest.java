@@ -72,7 +72,9 @@ class SecurityHttpTest {
     @MockitoBean private ChatService chatService;
     @MockitoBean private ChatTurnWorkflow chatTurnWorkflow;
     @MockitoBean private ConversationRepository conversationRepository;
+    @MockitoBean private com.hkv.AiTherapy.repository.ExtractionJobRepository extractionJobRepository;
     @MockitoBean private ProfileService profileService;
+    @MockitoBean private com.hkv.AiTherapy.service.profile.ProfileCandidateService profileCandidateService;
     @MockitoBean private MemoryService memoryService;
     @MockitoBean private SubscriptionService subscriptionService;
     @MockitoBean private EntitlementService entitlementService;
@@ -119,6 +121,21 @@ class SecurityHttpTest {
                 .andExpect(jsonPath("$.error.details.content").value("Message content is required"))
                 .andExpect(jsonPath("$.error.details.content").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("   "))))
                 .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void profileExtractionStatusRequiresOwnership() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        mvc.perform(get("/chat/sessions/{sessionId}/extraction-status", sessionId))
+                .andExpect(status().isUnauthorized());
+        when(conversationRepository.findById(sessionId)).thenReturn(java.util.Optional.of(
+                com.hkv.AiTherapy.domain.Conversation.builder()
+                        .user(com.hkv.AiTherapy.domain.User.builder().id(UUID.randomUUID()).build())
+                        .build()));
+        mvc.perform(get("/chat/sessions/{sessionId}/extraction-status", sessionId)
+                        .header("Authorization", "Bearer synthetic-valid-token"))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(extractionJobRepository);
     }
 
     @Test

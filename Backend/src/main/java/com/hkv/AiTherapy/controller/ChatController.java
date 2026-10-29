@@ -5,6 +5,7 @@ import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.dto.response.ChatMessageResponse;
 import com.hkv.AiTherapy.dto.response.ConversationResponse;
 import com.hkv.AiTherapy.service.chat.ChatService;
+import com.hkv.AiTherapy.repository.ExtractionJobRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,13 +28,16 @@ public class ChatController {
     private final ChatService chatService;
     private final com.hkv.AiTherapy.repository.ConversationRepository conversationRepository;
     private final ObjectProvider<ChatTurnWorkflow> chatWorkflow;
+    private final ExtractionJobRepository extractionJobs;
 
     public ChatController(ChatService chatService,
                           com.hkv.AiTherapy.repository.ConversationRepository conversationRepository,
-                          ObjectProvider<ChatTurnWorkflow> chatWorkflow) {
+                          ObjectProvider<ChatTurnWorkflow> chatWorkflow,
+                          ExtractionJobRepository extractionJobs) {
         this.chatService = chatService;
         this.conversationRepository = conversationRepository;
         this.chatWorkflow = chatWorkflow;
+        this.extractionJobs = extractionJobs;
     }
 
     @PostMapping
@@ -72,19 +76,35 @@ public class ChatController {
     }
 
     @PostMapping("/{sessionId}/refresh-profile")
-    public ResponseEntity<ApiResponse<Void>> refreshProfileMidSession(@AuthenticationPrincipal String userId,
+    public ResponseEntity<ApiResponse<ExtractionStatus>> refreshProfileMidSession(@AuthenticationPrincipal String userId,
                                                                       @PathVariable UUID sessionId) {
-        com.hkv.AiTherapy.domain.Conversation conv = conversationRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
-                
-        if (!conv.getUser().getId().equals(UUID.fromString(userId))) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
-        }
-        
-        // Keep the legacy route for existing clients. Inferred output cannot overwrite
-        // user-confirmed profile fields; extraction runs only after session completion.
-        return ResponseEntity.ok(ApiResponse.success(null));
+        UUID owner = UUID.fromString(userId);
+        ownedConversation(owner, sessionId);
+        chatService.endSession(owner, sessionId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(extractionStatus(sessionId)));
     }
+
+    @GetMapping("/{sessionId}/extraction-status")
+    public ResponseEntity<ApiResponse<ExtractionStatus>> extractionStatus(@AuthenticationPrincipal String userId,
+                                                                           @PathVariable UUID sessionId) {
+        ownedConversation(UUID.fromString(userId), sessionId);
+        return ResponseEntity.ok(ApiResponse.success(extractionStatus(sessionId)));
+    }
+
+    private void ownedConversation(UUID userId, UUID sessionId) {
+        var conversation = conversationRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found"));
+        if (!conversation.getUser().getId().equals(userId))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
+    }
+
+    private ExtractionStatus extractionStatus(UUID sessionId) {
+        return extractionJobs.findFirstByConversationIdOrderByCreatedAtDesc(sessionId)
+                .map(job -> new ExtractionStatus(job.getStatus()))
+                .orElseGet(() -> new ExtractionStatus("NOT_QUEUED"));
+    }
+
+    public record ExtractionStatus(String status) { }
 
     @PostMapping(value = "/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> streamMessage(

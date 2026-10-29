@@ -7,8 +7,10 @@ import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.dto.response.MemoryPageResponse;
 import com.hkv.AiTherapy.dto.response.MemoryResponse;
 import com.hkv.AiTherapy.dto.response.ProfileResponse;
+import com.hkv.AiTherapy.dto.response.ProfileCandidateResponse;
 import com.hkv.AiTherapy.service.memory.MemoryService;
 import com.hkv.AiTherapy.service.profile.ProfileService;
+import com.hkv.AiTherapy.service.profile.ProfileCandidateService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/profile/me")
@@ -23,10 +26,13 @@ public class ProfileController {
 
     private final ProfileService profileService;
     private final MemoryService memoryService;
+    private final ProfileCandidateService profileCandidateService;
 
-    public ProfileController(ProfileService profileService, MemoryService memoryService) {
+    public ProfileController(ProfileService profileService, MemoryService memoryService,
+                             ProfileCandidateService profileCandidateService) {
         this.profileService = profileService;
         this.memoryService = memoryService;
+        this.profileCandidateService = profileCandidateService;
     }
 
     // ── Profile ───────────────────────────────────────────────────────────────
@@ -54,6 +60,27 @@ public class ProfileController {
     public ResponseEntity<ApiResponse<Map<String, Long>>> resetContext(@AuthenticationPrincipal String userId) {
         long revision = profileService.deleteProfile(UUID.fromString(userId));
         return ResponseEntity.ok(ApiResponse.success(Map.of("contextRevision", revision)));
+    }
+
+    @GetMapping("/profile-candidates")
+    public ResponseEntity<ApiResponse<List<ProfileCandidateResponse>>> profileCandidates(
+            @AuthenticationPrincipal String userId) {
+        return ResponseEntity.ok(ApiResponse.success(profileCandidateService.pending(UUID.fromString(userId))));
+    }
+
+    @PostMapping("/profile-candidates/{candidateId}/confirm")
+    public ResponseEntity<ApiResponse<ProfileResponse>> confirmProfileCandidate(
+            @AuthenticationPrincipal String userId, @PathVariable UUID candidateId) {
+        UUID owner = UUID.fromString(userId);
+        profileCandidateService.accept(owner, candidateId);
+        return ResponseEntity.ok(ApiResponse.success(profileService.getProfile(owner)));
+    }
+
+    @DeleteMapping("/profile-candidates/{candidateId}")
+    public ResponseEntity<Void> dismissProfileCandidate(@AuthenticationPrincipal String userId,
+                                                         @PathVariable UUID candidateId) {
+        profileCandidateService.dismiss(UUID.fromString(userId), candidateId);
+        return ResponseEntity.noContent().build();
     }
 
     // ── Memories ──────────────────────────────────────────────────────────────

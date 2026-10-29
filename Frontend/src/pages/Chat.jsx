@@ -27,6 +27,8 @@ export default function Chat() {
   const [isSessionStarting, setIsSessionStarting] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Connecting to your session...');
   const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
+  const [profileReviewKey, setProfileReviewKey] = useState(0);
+  const [profileUpdateNotice, setProfileUpdateNotice] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [enable3DBackground, setEnable3DBackground] = useState(() => {
     return localStorage.getItem('enable3DBackground') === 'true';
@@ -105,10 +107,10 @@ export default function Chat() {
   }, [navigate]);
 
   const handleEndSession = async () => {
-    if (!sessionId) return;
+    if (!sessionId || isRefreshingProfile || isSessionStarting) return;
     activeStreamRef.current?.abort();
     setIsSessionStarting(true);
-    setLoadingMessage('Saving your session & updating profile...');
+    setLoadingMessage('Saving your session...');
     try {
       await chatAPI.endSession(sessionId);
       try {
@@ -154,15 +156,48 @@ export default function Chat() {
   };
 
   const handleRefreshProfile = async () => {
-    if (!sessionId || isRefreshingProfile) return;
+    if (!sessionId || isRefreshingProfile || isTyping || isSessionStarting) return;
+    const finishedSessionId = sessionId;
     setIsRefreshingProfile(true);
+    setChatError('');
+    setProfileUpdateNotice('Saving this session and preparing profile suggestions...');
     try {
-      await chatAPI.refreshProfileMidSession(sessionId);
-      const profileRes = await profileAPI.getProfile();
-      if (profileRes) setProfile(profileRes);
+      const started = await chatAPI.refreshProfileMidSession(finishedSessionId);
+      setIsSessionStarting(true);
+      setLoadingMessage('Starting a new session...');
+      setSessionId(null);
+      setMessages([]);
+      setChatBlocked(false);
+      const nextSession = await chatAPI.createSession();
+      if (!nextSession?.id) throw new Error('Could not start a new session. Please refresh the page.');
+      setSessionId(nextSession.id);
+      setMessages(nextSession.recentMessages || []);
+      setIsSessionStarting(false);
+      refreshUsage();
+
+      let status = started?.status;
+      for (let attempt = 0; attempt < 45 && status !== 'COMPLETED' && status !== 'FAILED' && status !== 'SUPERSEDED' && status !== 'NOT_QUEUED'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        status = (await chatAPI.getExtractionStatus(finishedSessionId)).status;
+      }
+      if (status === 'COMPLETED') {
+        const updated = await profileAPI.getProfile();
+        if (updated) setProfile(updated);
+        setProfileReviewKey(key => key + 1);
+        setIsProfileOpen(true);
+        setProfileUpdateNotice('Your profile suggestions are ready. Review and apply the ones you want to keep.');
+      } else if (status === 'NOT_QUEUED') {
+        setProfileUpdateNotice('There was no eligible chat content to add to your profile in that session.');
+      } else if (status === 'FAILED' || status === 'SUPERSEDED') {
+        setProfileUpdateNotice('Profile suggestions could not be prepared from that session. You can keep chatting and try again later.');
+      } else {
+        setProfileUpdateNotice('Profile suggestions are still processing. Open your profile and refresh suggestions in a moment.');
+      }
     } catch (e) {
-      console.error('Failed to refresh profile mid-session', e);
+      setChatError(e.response?.data?.error?.message || e.message || 'Could not update your profile. Please try again.');
+      setProfileUpdateNotice('');
     } finally {
+      setIsSessionStarting(false);
       setIsRefreshingProfile(false);
     }
   };
@@ -326,8 +361,8 @@ export default function Chat() {
             {sessionId && !isSessionStarting && (
               <button
                 onClick={handleRefreshProfile}
-                disabled={isRefreshingProfile}
-                title="Update your profile traits from this conversation"
+                disabled={isRefreshingProfile || isTyping}
+                title="Finish this session and prepare profile suggestions for review"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all disabled:opacity-50 disabled:cursor-wait"
               >
                 <span className="text-sm">🔃</span>
@@ -339,6 +374,7 @@ export default function Chat() {
             {sessionId && !isSessionStarting && (
               <button
                 onClick={handleEndSession}
+                disabled={isRefreshingProfile || isTyping}
                 title="End current session and start a new one"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-error/30 text-error hover:bg-error/10 transition-all"
               >
@@ -385,9 +421,10 @@ export default function Chat() {
               <>
                 <button
                   onClick={() => { handleRefreshProfile(); setIsMobileMenuOpen(false); }}
+                  disabled={isRefreshingProfile || isTyping}
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container-low hover:bg-primary/5 text-primary text-sm font-semibold text-left transition-colors border border-outline-variant/10"
                 >
-                  <span className="text-lg">🔃</span> Update Tracking
+                  <span className="text-lg">🔃</span> Finish session & update profile
                 </button>
                 <button
                   onClick={() => { handleOpenProfile(); setIsMobileMenuOpen(false); }}
@@ -397,6 +434,7 @@ export default function Chat() {
                 </button>
                 <button
                   onClick={() => { handleEndSession(); setIsMobileMenuOpen(false); }}
+                  disabled={isRefreshingProfile || isTyping}
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container-low hover:bg-error/5 text-error text-sm font-semibold text-left transition-colors border border-outline-variant/10"
                 >
                   <span className="text-lg">🔄</span> Start New Session
@@ -485,6 +523,7 @@ export default function Chat() {
             {/* ── Input Bar ── */}
             <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
               {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
+              {profileUpdateNotice && <p role="status" className="max-w-4xl mx-auto mb-3 text-sm text-primary pointer-events-auto">{profileUpdateNotice}</p>}
               {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
                 {usage.tier} · {usage.remainingRequests} daily requests and {usage.remainingTokens.toLocaleString()} tokens remaining
                 {usage.resetAt && !Number.isNaN(Date.parse(usage.resetAt)) && ` · Resets ${new Date(usage.resetAt).toLocaleString()}`}
@@ -530,15 +569,16 @@ export default function Chat() {
           <>
             <button
               onClick={handleRefreshProfile}
-              disabled={isRefreshingProfile}
+              disabled={isRefreshingProfile || isTyping}
               className="w-12 h-12 flex items-center justify-center rounded-2xl glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-secondary transition-all hover:scale-110 group relative disabled:opacity-50"
-              title="Update Profile"
+              title="Finish this session and prepare profile suggestions for review"
             >
               🔃
               <span className="absolute right-full mr-3 px-3 py-1 rounded bg-surface-container-high text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Update Profile</span>
             </button>
             <button
               onClick={handleEndSession}
+              disabled={isRefreshingProfile || isTyping}
               className="w-12 h-12 flex items-center justify-center rounded-2xl glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-error transition-all hover:scale-110 group relative"
               title="New Session"
             >
@@ -554,6 +594,8 @@ export default function Chat() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profile={profile}
+        profileReviewKey={profileReviewKey}
+        onProfileChanged={setProfile}
         onProfileDeleted={() => navigate('/about-you', { replace: true })}
         usage={usage}
         usageError={usageError}

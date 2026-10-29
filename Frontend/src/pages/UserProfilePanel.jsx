@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/subscriptionStore';
 import { profileAPI } from '../api/profile';
 import MemoryReview from '../components/MemoryReview';
+import ProfileSuggestionReview from '../components/ProfileSuggestionReview';
 
-export default function UserProfilePanel({ isOpen, onClose, profile, usage, usageError, onRefreshUsage, onProfileDeleted, enable3DBackground, onToggle3DBackground }) {
+export default function UserProfilePanel({ isOpen, onClose, profile, profileReviewKey, onProfileChanged, usage, usageError, onRefreshUsage, onProfileDeleted, enable3DBackground, onToggle3DBackground }) {
   const { deleteAccount } = useAuth();
   const { isPro, startUpgrade, upgradeLoading, upgradeError, loading, statusLoaded, refreshStatus, tier, proExpiresAt, isDevMode, devForcePro, devForceFree } = useSubscription();
   const [isDeletingProfile, setIsDeletingProfile] = useState(false);
@@ -146,6 +147,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, usage, usag
                         }}
                       />
                     </div>
+                    {trait.value && <p className="mt-2 text-sm text-on-surface-variant">{trait.value}</p>}
                     <p className="text-[10px] text-on-surface-variant/40 mt-1.5 uppercase tracking-wider">
                       Source: {trait.source}
                     </p>
@@ -157,7 +159,8 @@ export default function UserProfilePanel({ isOpen, onClose, profile, usage, usag
             </div>
           </section>
 
-          <MemoryReview isOpen={isOpen} />
+          <ProfileSuggestionReview isOpen={isOpen} refreshKey={profileReviewKey} onProfileChanged={onProfileChanged} />
+          <MemoryReview isOpen={isOpen} refreshKey={profileReviewKey} />
 
           {/* Preferences */}
           <section>
