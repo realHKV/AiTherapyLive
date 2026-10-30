@@ -177,7 +177,8 @@ public class DurableExtractionProcessor {
             boolean saved = persist(snapshot, extraction, reservation.requestId(), result);
             if (!saved) log.info("Extraction job {} was superseded before persistence", snapshot.jobId());
         } catch (Exception failure) {
-            StackTraceElement origin = failure.getStackTrace().length == 0 ? null : failure.getStackTrace()[0];
+            StackTraceElement[] frames = failure.getStackTrace();
+            StackTraceElement origin = frames.length > 1 ? frames[1] : frames.length == 1 ? frames[0] : null;
             log.warn("Extraction job {} attempt failed ({}: {} at {})", snapshot.jobId(), failureCode(failure),
                     failure.getClass().getSimpleName(), origin);
             if (started) accounting.settle(reservation.requestId(), null, null, "FAILED", failureCode(failure));
