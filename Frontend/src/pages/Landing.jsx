@@ -4,6 +4,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/subscriptionStore';
 import { googleSignInUrl } from '../api/auth';
+import { analyticsAvailable, analyticsConsent, recordPublicLandingVisit, setAnalyticsConsent } from '../analytics/posthog';
 
 // Inline SVG Google logo
 const GoogleIcon = () => (
@@ -54,6 +55,14 @@ const FEATURES = [
   },
 ];
 
+const FAQ = [
+  { question: 'Is TrustTherapy.ai a licensed therapist?', answer: 'No. It is an AI guided reflection tool, not a licensed clinician, diagnosis, treatment, or emergency service. If you need urgent help, contact local emergency services or a qualified professional.' },
+  { question: 'Will it remember what I share?', answer: 'Your conversation stays in your chat history. The app may suggest lasting profile details or memories, but you review and apply those suggestions before they are saved for future AI context.' },
+  { question: 'Can I return to an unfinished conversation?', answer: 'Yes. When an active chat is available, opening Chat resumes it and shows recent messages. You can start a fresh session when you choose.' },
+  { question: 'What is the difference between Free and Pro?', answer: 'Free includes a daily AI usage allowance. Pro provides a higher tier model and expanded usage for 30 days. The app shows your current allowance before you send messages.' },
+  { question: 'When is this demo available?', answer: 'The demo backend is scheduled to pause from midnight until 7 a.m. India time. The site remains visible, and a countdown shows when chat is expected to return.' },
+];
+
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -61,6 +70,9 @@ export default function Landing() {
   const [activeSection, setActiveSection] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAlreadyPro, setShowAlreadyPro] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(analyticsConsent);
+
+  React.useEffect(() => { recordPublicLandingVisit(); }, []);
 
   React.useEffect(() => {
     // Disable browser's automatic scroll restoration
@@ -76,7 +88,7 @@ export default function Landing() {
     // Force scroll to top on reload
     window.scrollTo(0, 0);
 
-    const sections = ['home', 'features', 'security', 'pricing'];
+    const sections = ['home', 'features', 'security', 'pricing', 'faq'];
     const observerOptions = {
       root: null,
       rootMargin: '-40% 0px -40% 0px', // Trigger when section is roughly in the middle 20% of viewport
@@ -163,6 +175,7 @@ export default function Landing() {
             >
               Pricing
             </a>
+            <a className={`font-headline transition-all duration-300 ${activeSection === 'faq' ? 'text-primary font-bold' : 'text-on-surface/70 hover:text-primary'}`} href="#faq">FAQ</a>
             <ThemeToggle />
             <button onClick={handleGoogleSignIn} className="bg-white border border-primary/30 px-6 py-2 rounded-full font-headline text-black font-semibold cursor-pointer active:scale-95 transition-all outline outline-1 outline-outline-variant/20">Sign In</button>
           </div>
@@ -179,6 +192,7 @@ export default function Landing() {
             <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">Features</a>
             <a href="#security" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">Security</a>
             <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">Pricing</a>
+            <a href="#faq" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">FAQ</a>
             <button onClick={() => { handleGoogleSignIn(); setIsMobileMenuOpen(false); }} className="bg-primary text-on-primary px-6 py-3 rounded-full font-headline font-bold text-center mt-2">Sign In with Google</button>
           </div>
         )}
@@ -489,6 +503,24 @@ export default function Landing() {
           </div>
         </section>
 
+        <section id="faq" aria-labelledby="faq-title" className="py-24 px-6 bg-surface-container-low">
+          <div className="max-w-4xl mx-auto">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary mb-4">Good to know</p>
+            <h2 id="faq-title" className="font-headline text-4xl md:text-5xl font-bold tracking-tight mb-5">Questions before you begin</h2>
+            <p className="text-on-surface-variant mb-10">Clear answers about the AI guide, saved memories, pricing, and demo hours.</p>
+            <div className="space-y-3">
+              {FAQ.map(({ question, answer }) => (
+                <details key={question} className="group rounded-2xl border border-outline-variant/20 bg-surface p-5 md:p-6">
+                  <summary className="cursor-pointer list-none flex items-center justify-between gap-4 font-headline font-semibold text-lg marker:hidden">
+                    {question}<span aria-hidden="true" className="material-symbols-outlined text-primary group-open:rotate-45 transition-transform">add</span>
+                  </summary>
+                  <p className="mt-4 text-on-surface-variant leading-relaxed max-w-3xl">{answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* CTA Section */}
         <section className="py-32 px-6 max-w-4xl mx-auto text-center">
           <h2 className="font-headline text-4xl md:text-5xl font-bold mb-8 tracking-tight">Ready for clarity?</h2>
@@ -516,6 +548,12 @@ export default function Landing() {
               <span className="material-symbols-outlined text-[#173356]/40 cursor-pointer hover:text-primary transition-colors">mail</span>
             </a>
           </div>
+          {analyticsAvailable && (
+            <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer">
+              <input type="checkbox" checked={analyticsEnabled} onChange={event => { setAnalyticsConsent(event.target.checked); setAnalyticsEnabled(event.target.checked); }} />
+              Allow landing page analytics without account identity
+            </label>
+          )}
         </div>
       </footer>
     </div>

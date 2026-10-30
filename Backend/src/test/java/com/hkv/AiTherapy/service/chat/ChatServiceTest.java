@@ -23,6 +23,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -79,6 +80,27 @@ class ChatServiceTest {
         testProfile = new TherapyProfile();
         testProfile.setUser(testUser);
         testProfile.setTotalSessions(5);
+    }
+
+    @Test
+    void activeSessionReturnsRecentMessagesWithoutStartingAnotherConversation() {
+        Message older = Message.builder().id(UUID.randomUUID()).conversation(testConversation)
+                .role("user").content("I had a difficult day").build();
+        Message newer = Message.builder().id(UUID.randomUUID()).conversation(testConversation)
+                .role("assistant").content("Would you like to talk about it?").build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active"))
+                .thenReturn(Optional.of(testConversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtDescIdDesc(eq(conversationId), any()))
+                .thenReturn(List.of(newer, older));
+
+        var response = chatService.activeSession(userId);
+
+        assertEquals(conversationId.toString(), response.getId());
+        assertEquals("I had a difficult day", response.getRecentMessages().get(0).getContent());
+        assertEquals("Would you like to talk about it?", response.getRecentMessages().get(1).getContent());
+        verifyNoInteractions(aiGateway, promptBuilder);
+        verify(conversationRepository, never()).save(any());
     }
 
     @Test

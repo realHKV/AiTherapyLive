@@ -20,3 +20,6 @@ if (rawOrigin) {
 
 rules.push('/* /index.html 200');
 writeFileSync(new URL('../dist/_redirects', import.meta.url), `${rules.join('\n')}\n`);
+if (process.env.CONTEXT === 'deploy-preview') {
+  writeFileSync(new URL('../dist/_headers', import.meta.url), '/*\n  X-Robots-Tag: noindex, nofollow\n');
+}

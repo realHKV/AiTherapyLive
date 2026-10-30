@@ -40,6 +40,12 @@ public class ChatController {
         this.extractionJobs = extractionJobs;
     }
 
+    @GetMapping("/active")
+    public ResponseEntity<ApiResponse<ConversationResponse>> activeSession(@AuthenticationPrincipal String userId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(ApiResponse.success(chatService.activeSession(UUID.fromString(userId))));
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<ConversationResponse>> startSession(@AuthenticationPrincipal String userId,
                                                                           @RequestHeader(value = "X-Chat-Request-Version", required = false) String version,

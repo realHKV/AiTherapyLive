@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { analyticsAvailable, analyticsConsent, setAnalyticsConsent } from '../analytics/posthog';
 
 export default function Privacy() {
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(analyticsConsent);
   return (
     <div className="bg-surface text-on-surface font-body min-h-screen selection:bg-primary-container selection:text-on-primary-container">
       {/* Simple Header */}
@@ -72,6 +74,20 @@ export default function Privacy() {
               from the app. Account deletion removes active application records. Backup and service-provider retention
               may follow separate schedules.
             </p>
+          </section>
+          <section>
+            <h2 className="font-headline text-2xl font-bold mb-4 text-on-surface">6. Optional public page analytics</h2>
+            <p className="text-on-surface-variant leading-relaxed">
+              If you opt in on the landing page, PostHog records a landing page visit without your account identity. Analytics is off by default.
+              Chat text, profile details, sign-in identity, and session replay are not sent to PostHog. You can turn this off
+              here or from the landing page. The integration remains inactive until a PostHog project is configured.
+            </p>
+            {analyticsAvailable && (
+              <label className="inline-flex items-center gap-3 mt-4 text-on-surface cursor-pointer">
+                <input type="checkbox" checked={analyticsEnabled} onChange={event => { setAnalyticsConsent(event.target.checked); setAnalyticsEnabled(event.target.checked); }} />
+                Allow public landing page analytics
+              </label>
+            )}
           </section>
         </div>
 

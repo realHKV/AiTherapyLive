@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /chat
+Disallow: /home
+Disallow: /profile
+Disallow: /about-you
+Sitemap: https://trust-therapy-ai.netlify.app/sitemap.xml

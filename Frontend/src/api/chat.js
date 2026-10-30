@@ -3,6 +3,7 @@ import apiClient, { API_BASE_URL, refreshSession, expireSession } from './client
 const requestKey = () => crypto.randomUUID();
 
 export const chatAPI = {
+  getActiveSession: () => apiClient.get('/chat/sessions/active'),
   // Start a new therapy session
   createSession: async () => {
     return apiClient.post('/chat/sessions', null, {

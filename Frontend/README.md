@@ -10,6 +10,8 @@ For the single-EC2 Sydney staging option, configure the **Deploy Previews** cont
 
 Set `VITE_DEMO_SCHEDULE_ENABLED=true` in the Netlify build environment when the EC2 stop/start schedule is active. The app then shows a site-wide countdown from 23:00 to 00:00 IST, followed by a countdown to the planned 07:00 IST restart. Keep it disabled while the site still uses a backend without that schedule. The banner is based on the visitor's clock and does not replace a backend health check.
 
+Optional PostHog landing analytics: set `VITE_POSTHOG_KEY` to the public project token and `VITE_POSTHOG_REGION` to `US` or `EU` in the intended Netlify build context. The SDK loads only after a visitor opts in using the landing footer checkbox. Only the `public_landing_viewed` event is sent; autocapture, page views, person profiles, and session recording are disabled. No chat or profile content is sent. Leave both variables unset to keep analytics disabled.
+
 ```bash
 npm ci
 npm run dev

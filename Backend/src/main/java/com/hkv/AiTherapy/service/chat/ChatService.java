@@ -65,6 +65,23 @@ public class ChatService {
         this.extractionJobQueue = extractionJobQueue;
     }
 
+    /** Resume an existing conversation without generating a greeting or consuming chat quota. */
+    @Transactional(readOnly = true)
+    public ConversationResponse activeSession(UUID userId) {
+        userRepository.findById(userId).filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        return conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active")
+                .map(conversation -> {
+                    List<Message> recent = new ArrayList<>(messageRepository
+                            .findByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId(), PageRequest.of(0, 50)));
+                    Collections.reverse(recent);
+                    return ConversationResponse.builder()
+                            .id(conversation.getId().toString()).status(conversation.getStatus())
+                            .startedAt(conversation.getStartedAt()).tokenCount(conversation.getTokenCount())
+                            .recentMessages(recent.stream().map(this::mapToDto).toList()).build();
+                }).orElse(null);
+    }
+
     @Transactional
     public ConversationResponse startSession(UUID userId) {
         userRepository.findByIdForUpdate(userId)

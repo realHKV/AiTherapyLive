@@ -26,6 +26,7 @@ export default function Chat() {
   const [usage, setUsage] = useState(null);
   const [usageError, setUsageError] = useState('');
   const [isSessionStarting, setIsSessionStarting] = useState(true);
+  const [sessionRetryKey, setSessionRetryKey] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Connecting to your session...');
   const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
   const [profileReviewKey, setProfileReviewKey] = useState(0);
@@ -80,32 +81,40 @@ export default function Chat() {
   }, [messages]);
 
   useEffect(() => {
+    let cancelled = false;
     const initData = async () => {
       try {
         setLoadingMessage('Connecting to your session...');
-        const [sessionRes, profileRes] = await Promise.all([
-          chatAPI.createSession(),
-          profileAPI.getProfile(),
-        ]);
+        setChatError('');
+        const profileRes = await profileAPI.getProfile().catch(() => null);
+        if (cancelled) return;
         
         if (profileRes && profileRes.onboardingComplete === false) {
           navigate('/about-you', { replace: true });
           return;
         }
-        
+        if (profileRes) setProfile(profileRes);
+        const activeSession = await chatAPI.getActiveSession();
+        if (cancelled) return;
+        const sessionRes = activeSession?.id ? activeSession : await chatAPI.createSession();
+        if (cancelled) return;
         if (sessionRes && sessionRes.id) {
           setSessionId(sessionRes.id);
           setMessages(sessionRes.recentMessages || []);
+        } else {
+          throw new Error('The chat server did not return a session.');
         }
-        if (profileRes) setProfile(profileRes);
       } catch (err) {
-        setChatError(err.response?.data?.error?.message || 'Could not connect to your session. Please refresh to try again.');
+        if (!cancelled) setChatError(err.response?.status === 429
+          ? 'Chat is temporarily busy. Please wait a moment, then try again.'
+          : err.response?.data?.error?.message || 'Could not connect to your session. Please try again.');
       } finally {
-        setIsSessionStarting(false);
+        if (!cancelled) setIsSessionStarting(false);
       }
     };
     initData();
-  }, [navigate]);
+    return () => { cancelled = true; };
+  }, [navigate, sessionRetryKey]);
 
   const handleEndSession = async () => {
     if (!sessionId || isRefreshingProfile || isSessionStarting) return;
@@ -458,14 +467,34 @@ export default function Chat() {
           </div>
         ) : (
           <>
+            {!sessionId && (
+              <div className="flex-1 flex items-center justify-center px-4">
+                <div className="max-w-md w-full rounded-3xl bg-surface-container-low border border-outline-variant/20 p-8 text-center shadow-lg">
+                  <span className="material-symbols-outlined text-primary text-4xl" aria-hidden="true">wifi_off</span>
+                  <h1 className="font-headline text-2xl font-bold mt-3">We couldn’t open your chat</h1>
+                  <p role="alert" className="text-on-surface-variant mt-3">{chatError || 'Your conversation is safe. Try connecting again.'}</p>
+                  <div className="flex flex-wrap justify-center gap-3 mt-6">
+                    <button onClick={() => { setIsSessionStarting(true); setSessionRetryKey(key => key + 1); }} className="rounded-full bg-primary text-on-primary px-5 py-2.5 font-semibold">Try again</button>
+                    <button onClick={() => navigate('/home')} className="rounded-full border border-outline-variant/30 px-5 py-2.5 font-semibold">Back to overview</button>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* ── Messages Area ── */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 px-4 md:px-12 lg:px-24 py-8 pb-4">
+            {sessionId && <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 px-4 md:px-12 lg:px-24 py-8 pb-4">
               {/* Date divider */}
               <div className="flex justify-center">
                 <span className="text-[10px] font-bold text-on-surface-variant/40 tracking-[0.2em] uppercase">
                   {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </span>
               </div>
+
+              {messages.length === 0 && (
+                <div className="mx-auto max-w-lg text-center py-12">
+                  <h1 className="font-headline text-2xl font-bold">Your conversation is ready</h1>
+                  <p className="text-on-surface-variant mt-3">Share what is on your mind. You can return to this chat later.</p>
+                </div>
+              )}
 
               {messages.map((msg, idx) => (
                 <div
@@ -505,16 +534,19 @@ export default function Chat() {
 
               {/* Response progress */}
               {isTyping && (
-                <div role="status" aria-live="polite" className="ml-2 mr-auto rounded-xl glass-morphism border border-outline-variant/10 px-4 py-3 text-sm text-on-surface-variant">
-                  AI Guide is {responsePhase === 'thinking' ? 'thinking about your message' : 'responding'}
+                <div className="flex justify-start">
+                  <div role="status" aria-live="polite" className="inline-flex w-fit max-w-[85%] items-center gap-2 rounded-xl glass-morphism border border-outline-variant/10 px-4 py-3 text-sm text-on-surface-variant">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+                    AI Guide is {responsePhase === 'thinking' ? 'thinking about your message' : 'responding'}
+                  </div>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
-            </div>
+            </div>}
 
             {/* ── Input Bar ── */}
-            <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
+            {sessionId && <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
               {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
               {profileUpdateNotice && <p role="status" className="max-w-4xl mx-auto mb-3 text-sm text-primary pointer-events-auto">{profileUpdateNotice}</p>}
               {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
@@ -543,7 +575,7 @@ export default function Chat() {
                   Encrypted in transit and sensitive fields protected at rest
                 </p>
               </form>
-            </div>
+            </div>}
           </>
         )}
       </div>
