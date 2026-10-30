@@ -26,7 +26,15 @@ public class SummaryExtractionValidator {
     public ValidatedExtraction validate(String raw, List<Message> transcript) {
         if (raw == null || raw.length() > 30_000) throw invalid();
         final SummaryExtraction extraction;
-        try { extraction = mapper.readValue(raw, SummaryExtraction.class); }
+        String json = raw.strip();
+        if (json.startsWith("```")) {
+            int firstNewline = json.indexOf('\n');
+            if (firstNewline < 0 || !json.endsWith("```")) throw invalid();
+            String language = json.substring(3, firstNewline).strip();
+            if (!language.isEmpty() && !"json".equalsIgnoreCase(language)) throw invalid();
+            json = json.substring(firstNewline + 1, json.length() - 3).strip();
+        }
+        try { extraction = mapper.readValue(json, SummaryExtraction.class); }
         catch (RuntimeException e) { throw invalid(); }
         if (extraction == null || blank(extraction.getSummary()) || extraction.getSummary().length() > 2000) throw invalid();
 

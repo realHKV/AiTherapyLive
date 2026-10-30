@@ -32,6 +32,23 @@ class SummaryExtractionValidatorTest {
     }
 
     @Test
+    void acceptsNovaJsonCodeFenceWithoutWeakeningEvidenceValidation() {
+        String output = """
+                ```json
+                {"summary":"Discussed education goal.","profileCandidates":[],"traits":[],
+                 "memories":[{"type":"goal","title":"Finish nursing course","importance":7,
+                 "sourceMessageId":"%s","evidence":"finishing my nursing course"}]}
+                ```
+                """.formatted(sourceId);
+        var result = validator.validate(output, transcript);
+        assertEquals(1, result.candidates().size());
+        assertEquals("goal", result.candidates().getFirst().memoryType());
+
+        String unsupportedEvidence = output.replace("finishing my nursing course", "own a private island");
+        assertThrows(IllegalArgumentException.class, () -> validator.validate(unsupportedEvidence, transcript));
+    }
+
+    @Test
     void rejectsEvidenceThatCannotBeFoundInTheCitedUserMessage() {
         String output = """
                 {"summary":"Summary.","memories":[{"type":"fact","title":"Invented detail","importance":5,
