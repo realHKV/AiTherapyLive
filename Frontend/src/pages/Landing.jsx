@@ -4,7 +4,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/subscriptionStore';
 import { googleSignInUrl } from '../api/auth';
-import { analyticsAvailable, analyticsConsent, recordPublicLandingVisit, setAnalyticsConsent } from '../analytics/posthog';
+import { analyticsAvailable, analyticsConsent, recordPublicInteraction, recordPublicLandingVisit, setAnalyticsConsent } from '../analytics/posthog';
 
 // Inline SVG Google logo
 const GoogleIcon = () => (
@@ -114,6 +114,7 @@ export default function Landing() {
   }, []);
 
   const handleGoogleSignIn = () => {
+    recordPublicInteraction('public_get_started_clicked');
     window.location.href = googleSignInUrl();
   };
 
@@ -510,7 +511,7 @@ export default function Landing() {
             <p className="text-on-surface-variant mb-10">Clear answers about the AI guide, saved memories, pricing, and demo hours.</p>
             <div className="space-y-3">
               {FAQ.map(({ question, answer }) => (
-                <details key={question} className="group rounded-2xl border border-outline-variant/20 bg-surface p-5 md:p-6">
+                <details key={question} onToggle={event => { if (event.currentTarget.open) recordPublicInteraction('public_faq_opened'); }} className="group rounded-2xl border border-outline-variant/20 bg-surface p-5 md:p-6">
                   <summary className="cursor-pointer list-none flex items-center justify-between gap-4 font-headline font-semibold text-lg marker:hidden">
                     {question}<span aria-hidden="true" className="material-symbols-outlined text-primary group-open:rotate-45 transition-transform">add</span>
                   </summary>

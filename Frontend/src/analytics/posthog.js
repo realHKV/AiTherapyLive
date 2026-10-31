@@ -4,6 +4,8 @@ const projectKey = import.meta.env.VITE_POSTHOG_KEY;
 const region = import.meta.env.VITE_POSTHOG_REGION;
 const host = region === 'EU' ? 'https://eu.i.posthog.com' : region === 'US' ? 'https://us.i.posthog.com' : null;
 let initialized = false;
+let landingRecorded = false;
+const publicEvents = new Set(['public_get_started_clicked', 'public_faq_opened']);
 
 export const analyticsAvailable = Boolean(projectKey && host);
 export const analyticsConsent = () => localStorage.getItem(consentKey) === 'yes';
@@ -38,15 +40,26 @@ function loadPostHog() {
   script.async = true;
   script.crossOrigin = 'anonymous';
   script.src = `${host.replace('.i.posthog.com', '-assets.i.posthog.com')}/static/array.js`;
-  script.onerror = () => { initialized = false; window.posthog = undefined; };
+  script.onerror = () => { initialized = false; landingRecorded = false; window.posthog = undefined; };
   document.head.appendChild(script);
   client.opt_in_capturing({ captureEventName: false });
 }
 
 export function recordPublicLandingVisit() {
-  if (!analyticsConsent() || !analyticsAvailable || window.location.pathname !== '/' || window.location.search) return;
+  if (landingRecorded || !canCapturePublicEvent()) return;
   loadPostHog();
   window.posthog?.capture('public_landing_viewed', {});
+  landingRecorded = true;
+}
+
+function canCapturePublicEvent() {
+  return analyticsConsent() && analyticsAvailable && window.location.pathname === '/' && !window.location.search;
+}
+
+export function recordPublicInteraction(eventName) {
+  if (!publicEvents.has(eventName) || !canCapturePublicEvent()) return;
+  loadPostHog();
+  window.posthog?.capture(eventName, {});
 }
 
 export function setAnalyticsConsent(allowed) {

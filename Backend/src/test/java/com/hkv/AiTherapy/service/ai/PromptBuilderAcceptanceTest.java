@@ -54,6 +54,20 @@ class PromptBuilderAcceptanceTest {
         verify(memories, times(2)).findEligibleContextCandidates(userId, 50);
     }
 
+    @Test
+    void conversationalGuidanceIsPresentWithAndWithoutProfile() {
+        String withProfile = builder.buildSystemPrompt(userId, "work", 600);
+        assertTrue(withProfile.contains("Respond to a specific detail"));
+        assertTrue(withProfile.contains("Ask at most one relevant open question"));
+        assertTrue(withProfile.contains("not a human or a licensed therapist"));
+        assertFalse(withProfile.contains("Format responses with proper Markdown"));
+
+        when(profiles.findByUserId(userId)).thenReturn(java.util.Optional.empty());
+        String withoutProfile = builder.buildSystemPrompt(userId, null, 600);
+        assertTrue(withoutProfile.contains("Respond to a specific detail"));
+        assertTrue(withoutProfile.contains("immediate safety"));
+    }
+
     private static LongTermMemory memory(String title, String detail, int importance, LocalDate followUpAt) {
         return LongTermMemory.builder()
                 .title(title)
