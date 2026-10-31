@@ -78,9 +78,9 @@ export default function Privacy() {
           <section>
             <h2 className="font-headline text-2xl font-bold mb-4 text-on-surface">6. Optional public page analytics</h2>
             <p className="text-on-surface-variant leading-relaxed">
-              If you opt in on the landing page, PostHog records a landing page visit without your account identity. Analytics is off by default.
-              Chat text, profile details, sign-in identity, and session replay are not sent to PostHog. You can turn this off
-              here or from the landing page. The integration remains inactive until a PostHog project is configured.
+              If you opt in here or on the landing page, PostHog records public landing visits, Get Started clicks,
+              and FAQ opens without your account identity. Analytics is off by default. Chat text, profile details,
+              sign-in identity, and session replay are not sent to PostHog. You can turn analytics off here or on the landing page.
             </p>
             {analyticsAvailable && (
               <label className="inline-flex items-center gap-3 mt-4 text-on-surface cursor-pointer">
@@ -93,7 +93,7 @@ export default function Privacy() {
 
         <footer className="mt-20 pt-10 border-t border-outline-variant/10 text-center">
           <p className="text-sm text-on-surface-variant/60">
-            Last updated: October 26, 2026<br />
+            Last updated: October 31, 2026<br />
             Questions? Contact us at imnotharsh14@gmail.com
           </p>
         </footer>
