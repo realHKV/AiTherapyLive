@@ -12,9 +12,9 @@ export default function Privacy() {
           <Link to="/" className="text-xl font-bold text-on-surface dark:text-white font-headline tracking-tight">
             TrustTherapy.ai
           </Link>
-          <Link to="/" className="text-primary font-headline font-semibold hover:opacity-80 transition-all flex items-center gap-2">
+          <Link to="/" aria-label="Back to Home" className="text-primary font-headline font-semibold hover:opacity-80 transition-all flex items-center justify-center gap-2 min-w-11 min-h-11">
             <span className="material-symbols-outlined">arrow_back</span>
-            Back to Home
+            <span className="hidden sm:inline">Back to Home</span>
           </Link>
         </nav>
       </header>

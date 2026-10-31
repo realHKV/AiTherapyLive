@@ -76,7 +76,8 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface transition-all text-lg"
+            aria-label="Close profile"
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface transition-all text-lg"
           >
             ×
           </button>
@@ -99,9 +100,9 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
                 { label: 'Communication Style', value: profile?.communicationStyle || 'Default' },
                 { label: 'AI Persona', value: profile?.aiPersona || 'Standard' },
               ].map(item => (
-                <div key={item.label} className="flex items-center justify-between py-3 border-b border-outline-variant/10 last:border-0">
-                  <span className="text-sm text-on-surface-variant">{item.label}</span>
-                  <span className="text-sm font-semibold text-on-surface">{item.value}</span>
+                <div key={item.label} className="flex items-start justify-between gap-3 py-3 border-b border-outline-variant/10 last:border-0">
+                  <span className="text-sm text-on-surface-variant shrink-0">{item.label}</span>
+                  <span className="text-sm font-semibold text-on-surface text-right min-w-0 break-words">{item.value}</span>
                 </div>
               ))}
             </div>

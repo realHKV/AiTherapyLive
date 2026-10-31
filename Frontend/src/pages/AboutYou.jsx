@@ -171,7 +171,7 @@ export default function AboutYou() {
     }
   };
 
-  const inputClass = "w-full bg-surface-container-high border border-outline-variant/20 rounded-lg px-4 py-3.5 text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all text-sm font-medium";
+  const inputClass = "w-full bg-surface-container-high border border-outline-variant/20 rounded-lg px-4 py-3.5 text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all text-base md:text-sm font-medium";
   const labelClass = "block text-sm font-semibold text-primary/80 mb-2";
 
   return (
@@ -214,7 +214,7 @@ export default function AboutYou() {
           {/* ── Glass Card ── */}
           <div
             key={step}
-            className="animate-fade-slide rounded-xl p-8 md:p-12 border border-outline-variant/10 shadow-2xl"
+            className="animate-fade-slide rounded-xl p-5 sm:p-8 md:p-12 border border-outline-variant/10 shadow-2xl"
             style={{ background: 'rgba(20, 31, 56, 0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
           >
             {/* Step 0: Identity */}
@@ -365,7 +365,7 @@ export default function AboutYou() {
           </div>
 
           {/* ── Navigation ── */}
-          <div className="mt-6 flex items-center justify-between gap-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             {step > 0 ? (
               <button
                 id="back-btn"
@@ -380,7 +380,7 @@ export default function AboutYou() {
               <button
                 id="next-btn"
                 onClick={handleNext}
-                className="px-10 py-4 rounded-full bg-primary text-on-primary font-extrabold text-base flex items-center gap-3 hover:scale-105 transition-all shadow-[0_10px_30px_rgba(204,151,255,0.25)]"
+                className="min-h-12 flex-1 sm:flex-none justify-center px-5 sm:px-10 py-3 sm:py-4 rounded-full bg-primary text-on-primary font-extrabold text-sm sm:text-base flex items-center gap-2 sm:gap-3 hover:scale-105 transition-all shadow-[0_10px_30px_rgba(204,151,255,0.25)]"
               >
                 Continue
                 <span>→</span>
@@ -390,7 +390,7 @@ export default function AboutYou() {
                 id="finish-btn"
                 onClick={handleSubmit}
                 disabled={saving}
-                className="px-10 py-4 rounded-full bg-primary text-on-primary font-extrabold text-base flex items-center gap-3 hover:scale-105 transition-all shadow-[0_10px_30px_rgba(204,151,255,0.25)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="min-h-12 flex-1 sm:flex-none justify-center px-5 sm:px-10 py-3 sm:py-4 rounded-full bg-primary text-on-primary font-extrabold text-sm sm:text-base flex items-center gap-2 sm:gap-3 hover:scale-105 transition-all shadow-[0_10px_30px_rgba(204,151,255,0.25)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {saving ? 'Saving...' : 'Choose my therapist →'}
               </button>

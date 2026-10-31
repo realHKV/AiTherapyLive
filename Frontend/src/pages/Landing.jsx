@@ -181,7 +181,7 @@ export default function Landing() {
             <button onClick={handleGoogleSignIn} className="bg-white border border-primary/30 px-6 py-2 rounded-full font-headline text-black font-semibold cursor-pointer active:scale-95 transition-all outline outline-1 outline-outline-variant/20">Sign In</button>
           </div>
           <div className="md:hidden">
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2">
+            <button type="button" aria-label="Toggle navigation" aria-expanded={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="min-w-11 min-h-11 flex items-center justify-center -mr-2">
               <span className="material-symbols-outlined text-on-surface">menu</span>
             </button>
           </div>
@@ -236,21 +236,21 @@ export default function Landing() {
               <span className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant font-label">Now in Public Beta</span>
             </div>
 
-            <h1 className="font-headline text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter leading-[0.9] mb-8 text-glow pointer-events-auto">
+            <h1 className="font-headline text-[clamp(2.5rem,12vw,3rem)] md:text-7xl lg:text-8xl font-extrabold tracking-tighter leading-[0.95] md:leading-[0.9] mb-8 text-glow pointer-events-auto">
               Healing at the <br />
               <span className="text-primary italic drop-shadow-xl">speed of thought.</span>
             </h1>
 
-            <p className="max-w-2xl text-lg md:text-xl text-on-surface-variant leading-relaxed mb-12 font-body font-semibold pointer-events-auto bg-surface/50 backdrop-blur-sm p-4 rounded-2xl">
+            <p className="max-w-2xl text-base sm:text-lg md:text-xl text-on-surface-variant leading-relaxed mb-8 md:mb-12 font-body font-semibold pointer-events-auto bg-surface/50 backdrop-blur-sm p-4 rounded-2xl">
               Experience a restorative journey with TrustTherapy.ai. Our empathetic AI creates a safe, judgment-free space designed to help you navigate life's complexities with clarity and calm.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-center pointer-events-auto">
-              <button onClick={handleGoogleSignIn} className="liquid-gradient text-on-primary px-10 py-4 rounded-full font-headline font-bold text-lg flex items-center gap-3 shadow-xl shadow-primary/10 hover:shadow-primary/20 active:scale-95 transition-all">
+            <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto pointer-events-auto">
+              <button onClick={handleGoogleSignIn} className="liquid-gradient text-on-primary w-full sm:w-auto justify-center px-4 sm:px-10 py-4 rounded-full font-headline font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 shadow-xl shadow-primary/10 hover:shadow-primary/20 active:scale-95 transition-all">
                 <span>Begin Your Journey</span>
                 <span className="material-symbols-outlined">arrow_forward</span>
               </button>
-              <button onClick={handleGoogleSignIn} className="bg-white border border-primary/30 px-8 py-4 rounded-full font-headline font-semibold text-lg flex items-center gap-3 active:scale-95 transition-all text-gray-900 shadow-[0_0_20px_rgba(255,107,0,0.25)] hover:shadow-[0_0_30px_rgba(255,107,0,0.4)]">
+              <button onClick={handleGoogleSignIn} className="bg-white border border-primary/30 w-full sm:w-auto justify-center px-4 sm:px-8 py-4 rounded-full font-headline font-semibold text-base sm:text-lg flex items-center gap-2 sm:gap-3 active:scale-95 transition-all text-gray-900 shadow-[0_0_20px_rgba(255,107,0,0.25)] hover:shadow-[0_0_30px_rgba(255,107,0,0.4)]">
                 <GoogleIcon />
                 <span>Continue with Google</span>
               </button>
@@ -320,9 +320,9 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[250px]">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:auto-rows-[250px]">
 
-            <div className="md:col-span-8 bg-surface-container-low rounded-3xl p-10 flex flex-col justify-end relative overflow-hidden group border border-outline-variant/10">
+            <div className="md:col-span-8 bg-surface-container-low rounded-3xl p-6 sm:p-10 min-h-[230px] flex flex-col justify-end relative overflow-hidden group border border-outline-variant/10">
               <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 group-hover:scale-110 transition-transform duration-700">
                 <span className="material-symbols-outlined text-[300px] text-primary" style={{ fontVariationSettings: "'wght' 100" }}>schedule</span>
               </div>
@@ -331,24 +331,24 @@ export default function Landing() {
                 <p className="text-on-surface-variant max-w-md font-body leading-relaxed">No appointment is needed. You can start a conversation when the service is available and your daily allowance permits.</p>
               </div>
             </div>
-            <div className="md:col-span-4 bg-primary text-on-primary rounded-3xl p-10 flex flex-col justify-center text-center items-center">
+            <div className="md:col-span-4 bg-primary text-on-primary rounded-3xl p-6 sm:p-10 min-h-[230px] flex flex-col justify-center text-center items-center">
               <span className="material-symbols-outlined text-6xl mb-6" style={{ fontVariationSettings: "'wght' 200" }}>diversity_2</span>
               <h3 className="font-headline text-2xl font-bold mb-2">Zero Judgment</h3>
               <p className="text-on-primary/80 text-sm">Speak your truth without the fear of being perceived or judged by another human being.</p>
             </div>
-            <div className="md:col-span-4 bg-surface-container-high rounded-3xl p-10 flex flex-col justify-between border border-outline-variant/10">
+            <div className="md:col-span-4 bg-surface-container-high rounded-3xl p-6 sm:p-10 min-h-[230px] flex flex-col justify-between border border-outline-variant/10">
               <span className="material-symbols-outlined text-primary text-4xl">psychology</span>
               <div>
                 <h3 className="font-headline text-xl font-bold mb-2">Guided reflection</h3>
                 <p className="text-on-surface-variant text-sm">The AI can help organize thoughts and suggest questions for reflection. It does not provide diagnosis or treatment.</p>
               </div>
             </div>
-            <div className="md:col-span-8 bg-surface-container-lowest rounded-3xl p-10 flex flex-col md:flex-row items-center gap-10 shadow-sm border border-outline-variant/10">
+            <div className="md:col-span-8 bg-surface-container-lowest rounded-3xl p-6 sm:p-10 flex flex-col md:flex-row items-center gap-6 md:gap-10 shadow-sm border border-outline-variant/10">
               <div className="w-full md:w-1/2">
                 <h3 className="font-headline text-3xl font-bold mb-4">Context you control</h3>
                 <p className="text-on-surface-variant font-body">Confirmed memories can inform later conversations. You can review, edit, resolve, and forget saved memories.</p>
               </div>
-              <div className="w-full md:w-1/2 h-full rounded-2xl overflow-hidden">
+              <div className="w-full md:w-1/2 h-36 md:h-full rounded-2xl overflow-hidden">
                 <img alt="Evolving Calm" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB04KGNTiDoDdkEPu5jRGzHrseYA60wmku-hgBvDeKgPYTM5HgRv33CPlakORH0MiptATgCrrcLHp7LoNV2nIrqMgUDZJuaFXNsYzGMQvMz_7ez8MYSa38qPCOd4rQXvtA3J5NyUiHcuEm2VflEfeOvDlzEU5VLKHWwbD5PMER3SdQvq0ist6gnQ7DZuX0IcnklUZuMygQrm-tcZkOuHXvc2XVFmDmGBmw3JDbf1lYLjt6FYxLwPuzRQuz9G58t3DtS_h5Uk5FIU_1s" />
               </div>
             </div>
@@ -356,7 +356,7 @@ export default function Landing() {
         </section>
 
         {/* Security & Privacy Section */}
-        <section id="security" className="bg-surface-container-low py-32 px-6">
+        <section id="security" className="bg-surface-container-low py-20 md:py-32 px-6">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <div>
               <h2 className="font-headline text-4xl md:text-6xl font-bold mb-8 tracking-tighter">Your mind is your <br /><span className="text-primary italic">private sanctuary.</span></h2>
@@ -386,7 +386,7 @@ export default function Landing() {
             </div>
             <div className="relative">
               <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full"></div>
-              <div className="relative p-12 rounded-[3rem] shadow-xl shadow-black/20 border border-outline-variant/10 group overflow-hidden" style={{ background: 'oklch(27.4% 0.006 286.033)' }}>
+              <div className="relative p-6 sm:p-12 rounded-[2rem] sm:rounded-[3rem] shadow-xl shadow-black/20 border border-outline-variant/10 group overflow-hidden" style={{ background: 'oklch(27.4% 0.006 286.033)' }}>
                 {/* Subtle dark gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
                 
@@ -399,7 +399,7 @@ export default function Landing() {
                   <div className="text-center">
                     <h3 className="font-headline text-2xl font-bold mb-4 text-white">Designed for careful handling</h3>
                     <p className="text-white/70 mb-8 font-body">The application encrypts sensitive stored text and checks usage limits on the server.</p>
-                    <div className="flex justify-around py-6 border-t border-white/10">
+                    <div className="flex flex-wrap justify-around gap-4 py-6 border-t border-white/10">
                       <div className="text-center">
                         <p className="text-2xl font-extrabold font-headline text-primary">256-bit</p>
                         <p className="text-[10px] uppercase tracking-widest font-label text-white/50">Stored text encryption</p>

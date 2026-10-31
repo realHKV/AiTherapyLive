@@ -93,7 +93,7 @@ function TherapistCard({ therapist, selected, onSelect }) {
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-6 mb-5 pb-5 border-b border-outline-variant/10">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 mb-5 pb-5 border-b border-outline-variant/10">
         {[
           { label: 'Tone', value: therapist.tone },
           { label: 'Focus', value: therapist.focus },
@@ -291,7 +291,7 @@ export default function ChooseTherapist() {
 
       {/* Footer */}
       <footer className="py-8 px-8 bg-surface-container-lowest border-t border-outline-variant/10">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-center">
           <div className="text-sm font-bold text-primary font-headline">TrustTherapy.ai</div>
           <p className="text-xs text-on-surface/40">© 2026 TrustTherapy.ai. Secure &amp; Encrypted.</p>
         </div>

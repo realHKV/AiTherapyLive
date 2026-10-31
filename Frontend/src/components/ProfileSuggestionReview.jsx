@@ -47,7 +47,7 @@ export default function ProfileSuggestionReview({ isOpen, refreshKey, onProfileC
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50">Profile suggestions</h3>
-        <button onClick={reload} disabled={loading || !!busy} className="text-xs text-primary hover:underline disabled:opacity-50">Refresh</button>
+        <button onClick={reload} disabled={loading || !!busy} className="min-h-11 inline-flex items-center text-xs text-primary hover:underline disabled:opacity-50">Refresh</button>
       </div>
       <p className="text-xs text-on-surface-variant">Insights from chat appear here after you update your profile. Review each suggestion before adding it to your profile.</p>
       {error && <p role="alert" className="text-xs text-error">{error}</p>}
@@ -58,11 +58,11 @@ export default function ProfileSuggestionReview({ isOpen, refreshKey, onProfileC
           <p className="text-xs font-semibold text-primary">{fieldLabel(item.field)}</p>
           <p className="text-sm text-on-surface">{item.proposedValue}</p>
           <p className="text-xs text-on-surface-variant">From your message: “{item.evidence}”</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button disabled={!!busy} onClick={() => act(item, true)}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary disabled:opacity-50">Apply</button>
+              className="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary disabled:opacity-50">Apply</button>
             <button disabled={!!busy} onClick={() => act(item, false)}
-              className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">Dismiss</button>
+              className="min-h-11 rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">Dismiss</button>
           </div>
         </div>
       ))}

@@ -317,7 +317,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-background text-on-surface relative overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-var(--demo-banner-height,0px))] bg-background text-on-surface relative overflow-hidden">
       {enable3DBackground ? (
           <div className="absolute inset-0 z-0 bg-surface">
             {/* Desktop: Animated 3D Galaxy */}
@@ -348,8 +348,8 @@ export default function Chat() {
       <header className="glass-morphism-nav border-b border-outline-variant/10 z-50 relative">
         <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
           {/* Logo + session info */}
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => navigate('/home')} className="text-xl font-bold tracking-tight text-primary font-headline" title="Back to your overview">TrustTherapy.ai</button>
+          <div className="flex items-center gap-4 min-w-0">
+            <button type="button" onClick={() => navigate('/home')} className="min-h-11 text-lg sm:text-xl font-bold tracking-tight text-primary font-headline truncate" title="Back to your overview">TrustTherapy.ai</button>
             <div className="hidden md:flex items-center gap-2 glass-morphism rounded-full px-4 py-1.5 border border-outline-variant/10">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-on-surface-variant tracking-wide font-medium">Session Active</span>
@@ -404,7 +404,7 @@ export default function Chat() {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 -mr-2 text-on-surface-variant hover:text-on-surface transition-colors"
+              className="md:hidden min-w-11 min-h-11 flex items-center justify-center -mr-2 text-on-surface-variant hover:text-on-surface transition-colors"
             >
               <span className="material-symbols-outlined">menu</span>
             </button>
@@ -481,7 +481,7 @@ export default function Chat() {
               </div>
             )}
             {/* ── Messages Area ── */}
-            {sessionId && <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 px-4 md:px-12 lg:px-24 py-8 pb-4">
+            {sessionId && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-6 md:space-y-8 px-4 md:px-12 lg:px-24 py-5 md:py-8 pb-4">
               {/* Date divider */}
               <div className="flex justify-center">
                 <span className="text-[10px] font-bold text-on-surface-variant/40 tracking-[0.2em] uppercase">
@@ -546,7 +546,7 @@ export default function Chat() {
             </div>}
 
             {/* ── Input Bar ── */}
-            {sessionId && <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
+            {sessionId && <div className="px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:p-6 lg:p-8 pointer-events-none relative z-20">
               {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
               {profileUpdateNotice && <p role="status" className="max-w-4xl mx-auto mb-3 text-sm text-primary pointer-events-auto">{profileUpdateNotice}</p>}
               {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
@@ -561,17 +561,17 @@ export default function Chat() {
                     onChange={e => setInput(e.target.value)}
                     placeholder="Share your thoughts..."
                     disabled={isTyping || isRefreshingProfile || chatBlocked || !sessionId}
-                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-3 md:px-4 font-medium text-[15px] md:text-base disabled:cursor-not-allowed"
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/60 px-3 md:px-4 font-medium text-base disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isTyping || isRefreshingProfile || chatBlocked || !sessionId}
-                    className="h-10 md:h-11 px-5 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="h-11 min-w-11 px-4 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     Send
                   </button>
                 </div>
-                <p className="text-center mt-3 text-[10px] text-on-surface-variant/30 font-bold uppercase tracking-[0.3em]">
+                <p className="hidden sm:block text-center mt-3 text-[10px] text-on-surface-variant/50 font-bold uppercase tracking-[0.2em]">
                   Encrypted in transit and sensitive fields protected at rest
                 </p>
               </form>

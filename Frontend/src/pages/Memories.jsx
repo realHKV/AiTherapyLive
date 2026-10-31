@@ -18,7 +18,7 @@ export default function Memories() {
         </div>
       </header>
       <main className="home-main home-memories-main">
-        <button type="button" className="home-inline-link" onClick={() => navigate('/home')}>← Back to overview</button>
+        <button type="button" className="home-inline-link min-h-11" onClick={() => navigate('/home')}>← Back to overview</button>
         <div className="home-memories-intro">
           <span className="home-card-label">YOUR SPACE</span>
           <h1>Your memories and insights</h1>

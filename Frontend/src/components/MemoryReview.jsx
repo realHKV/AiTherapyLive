@@ -99,10 +99,10 @@ export default function MemoryReview({ isOpen, refreshKey }) {
     <div className="space-y-2">
       <input aria-label="Memory title" maxLength={200} value={fields(item).title}
         onChange={event => setDraft(item.id, 'title', event.target.value)}
-        className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface" />
+        className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-base md:text-sm text-on-surface" />
       <textarea aria-label="Memory detail" maxLength={2000} rows={2} value={fields(item).detail}
         onChange={event => setDraft(item.id, 'detail', event.target.value)}
-        className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface" />
+        className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-base md:text-sm text-on-surface" />
     </div>
   );
 
@@ -115,7 +115,7 @@ export default function MemoryReview({ isOpen, refreshKey }) {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant/50">Memory review</h3>
-        <button onClick={reload} disabled={loading || !!busy} className="text-xs text-primary hover:underline disabled:opacity-50">Refresh</button>
+        <button onClick={reload} disabled={loading || !!busy} className="min-h-11 inline-flex items-center text-xs text-primary hover:underline disabled:opacity-50">Refresh</button>
       </div>
       <p className="text-xs text-on-surface-variant">Suggested memories stay out of AI context until you confirm them.</p>
       {error && <p role="alert" className="text-xs text-error">{error}</p>}
@@ -131,12 +131,12 @@ export default function MemoryReview({ isOpen, refreshKey }) {
               <div key={item.id} className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-3 space-y-2">
                 {editFields(item)}
                 {item.sourceKind && <p className="text-xs text-on-surface-variant">Source: {label(item.sourceKind)}</p>}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button disabled={!!busy || !fields(item).title.trim()}
                     onClick={() => act(item.id, () => profileAPI.confirmCandidate(item.id, item.version, changedFields(item)))}
-                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary disabled:opacity-50">Confirm</button>
+                    className="min-h-11 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary disabled:opacity-50">Confirm</button>
                   <button disabled={!!busy} onClick={() => act(item.id, () => profileAPI.dismissCandidate(item.id, item.version))}
-                    className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">Dismiss</button>
+                    className="min-h-11 rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">Dismiss</button>
                 </div>
               </div>
             ))}
@@ -156,16 +156,16 @@ export default function MemoryReview({ isOpen, refreshKey }) {
             <div className="flex flex-wrap gap-2">
               <button disabled={!!busy || !fields(item).title.trim() || Object.keys(changedFields(item)).length === 0}
                 onClick={() => act(item.id, () => profileAPI.editMemory(item.id, item.version, changedFields(item)))}
-                className="rounded-lg border border-primary/40 px-3 py-1.5 text-xs text-primary disabled:opacity-50">Save edits</button>
+                className="min-h-11 rounded-lg border border-primary/40 px-3 py-1.5 text-xs text-primary disabled:opacity-50">Save edits</button>
               <button disabled={!!busy} onClick={() => act(item.id, () => profileAPI.editMemory(item.id, item.version,
                 { status: item.status === 'resolved' ? 'active' : 'resolved' }))}
-                className="rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">
+                className="min-h-11 rounded-lg border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface disabled:opacity-50">
                 {item.status === 'resolved' ? 'Reopen' : 'Resolve'}
               </button>
               <button disabled={!!busy} onClick={() => {
                 if (window.confirm('Forget this memory and exclude its known source from future AI context?'))
                   act(item.id, () => profileAPI.forgetMemory(item.id, item.version));
-              }} className="rounded-lg border border-error/30 px-3 py-1.5 text-xs text-error disabled:opacity-50">Forget</button>
+              }} className="min-h-11 rounded-lg border border-error/30 px-3 py-1.5 text-xs text-error disabled:opacity-50">Forget</button>
             </div>
           </div>
         ))}
@@ -180,17 +180,17 @@ export default function MemoryReview({ isOpen, refreshKey }) {
       }} className="space-y-2 border-t border-outline-variant/20 pt-4">
         <h4 className="text-sm font-semibold text-on-surface">Save a memory yourself</h4>
         <select aria-label="Memory type" value={newMemory.type} onChange={event => setNewMemory({ ...newMemory, type: event.target.value })}
-          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-base md:text-sm text-on-surface">
           {TYPES.map(type => <option key={type} value={type}>{label(type)}</option>)}
         </select>
         <input aria-label="New memory title" placeholder="Title" maxLength={200} value={newMemory.title}
           onChange={event => setNewMemory({ ...newMemory, title: event.target.value })}
-          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface" />
+          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-base md:text-sm text-on-surface" />
         <textarea aria-label="New memory detail" placeholder="Optional detail" maxLength={2000} rows={2} value={newMemory.detail}
           onChange={event => setNewMemory({ ...newMemory, detail: event.target.value })}
-          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface" />
+          className="w-full rounded-lg bg-surface-container-high px-3 py-2 text-base md:text-sm text-on-surface" />
         <button type="submit" disabled={!!busy || !newMemory.title.trim()}
-          className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-on-primary disabled:opacity-50">Save memory</button>
+          className="min-h-11 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-on-primary disabled:opacity-50">Save memory</button>
       </form>
     </section>
   );
