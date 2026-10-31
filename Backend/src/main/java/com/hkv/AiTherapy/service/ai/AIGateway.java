@@ -24,10 +24,4 @@ public interface AIGateway {
     /** PRO-aware variant. */
     void streamChatResponse(List<AiMessage> contextMessages, boolean isPro, java.util.function.Consumer<String> onNext, Runnable onComplete, java.util.function.Consumer<Throwable> onError);
 
-    /**
-     * Extracts a summary and key traits from a conversation transcript.
-     * @param sessionTranscript The entire transcript in string format
-     * @return A structured JSON-like summary
-     */
-    String summarizeSession(String sessionTranscript);
 }

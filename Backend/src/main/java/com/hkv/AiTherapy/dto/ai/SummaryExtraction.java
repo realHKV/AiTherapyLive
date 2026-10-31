@@ -7,21 +7,25 @@ import java.util.List;
 @Data
 public class SummaryExtraction {
     private String summary;
-    private ProfileUpdates profileUpdates;
+    private List<ProfileCandidateExtraction> profileCandidates;
     private List<TraitExtraction> traits;
     private List<MemoryExtraction> memories;
 
     @Data
-    public static class ProfileUpdates {
-        private String name;
-        private String age;
-        private String gender;
+    public static class ProfileCandidateExtraction {
+        private String field;
+        private String value;
+        private String sourceMessageId;
+        private String evidence;
     }
 
     @Data
     public static class TraitExtraction {
         private String key;
-        private double confidence;
+        private String value;
+        private Double confidence;
+        private String sourceMessageId;
+        private String evidence;
     }
 
     @Data
@@ -31,5 +35,7 @@ public class SummaryExtraction {
         private String detail;
         private int importance;
         private String followUpAt; // YYYY-MM-DD
+        private String sourceMessageId;
+        private String evidence;
     }
 }

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { chatAPI } from '../api/chat';
+import { readChatStream } from '../api/chatStream';
 import { profileAPI } from '../api/profile';
+import { usageAPI } from '../api/usage';
 import { useAuth } from '../context/AuthContext';
 import UserProfilePanel from './UserProfilePanel';
 import ReactMarkdown from 'react-markdown';
@@ -11,21 +13,56 @@ import ThemeToggle from '../components/ThemeToggle';
 export default function Chat() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [responsePhase, setResponsePhase] = useState('thinking');
+  const [chatError, setChatError] = useState('');
+  const [chatBlocked, setChatBlocked] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [memories, setMemories] = useState([]);
+  const [usage, setUsage] = useState(null);
+  const [usageError, setUsageError] = useState('');
   const [isSessionStarting, setIsSessionStarting] = useState(true);
+  const [sessionRetryKey, setSessionRetryKey] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Connecting to your session...');
   const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
+  const [profileReviewKey, setProfileReviewKey] = useState(0);
+  const [profileUpdateNotice, setProfileUpdateNotice] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [enable3DBackground, setEnable3DBackground] = useState(() => {
     return localStorage.getItem('enable3DBackground') === 'true';
   });
   const messagesEndRef = useRef(null);
+  const activeStreamRef = useRef(null);
+  const usageRequestRef = useRef(0);
+
+  const refreshUsage = useCallback(async () => {
+    const request = ++usageRequestRef.current;
+    try {
+      const status = await usageAPI.getStatus();
+      if (request !== usageRequestRef.current) return;
+      setUsage(status);
+      setUsageError('');
+    } catch {
+      if (request !== usageRequestRef.current) return;
+      setUsage(null);
+      setUsageError('Usage status is temporarily unavailable.');
+    }
+  }, []);
+
+  useEffect(() => { refreshUsage(); }, [refreshUsage]);
+
+  useEffect(() => {
+    if (location.state?.showUpgrade) {
+      setIsProfileOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => () => activeStreamRef.current?.abort(), []);
 
   const toggle3DBackground = () => {
     setEnable3DBackground(prev => {
@@ -44,54 +81,58 @@ export default function Chat() {
   }, [messages]);
 
   useEffect(() => {
+    let cancelled = false;
     const initData = async () => {
       try {
         setLoadingMessage('Connecting to your session...');
-        const [sessionRes, profileRes, memoriesRes] = await Promise.all([
-          chatAPI.createSession(),
-          profileAPI.getProfile(),
-          profileAPI.getMemories()
-        ]);
+        setChatError('');
+        const profileRes = await profileAPI.getProfile().catch(() => null);
+        if (cancelled) return;
         
-        // Onboarding Guard: if the user lacks a selected therapist (aiPersona), force them to onboard
-        if (profileRes && !profileRes.aiPersona) {
+        if (profileRes && profileRes.onboardingComplete === false) {
           navigate('/about-you', { replace: true });
           return;
         }
-        
+        if (profileRes) setProfile(profileRes);
+        const activeSession = await chatAPI.getActiveSession();
+        if (cancelled) return;
+        const sessionRes = activeSession?.id ? activeSession : await chatAPI.createSession();
+        if (cancelled) return;
         if (sessionRes && sessionRes.id) {
           setSessionId(sessionRes.id);
           setMessages(sessionRes.recentMessages || []);
+        } else {
+          throw new Error('The chat server did not return a session.');
         }
-        if (profileRes) setProfile(profileRes);
-        if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
       } catch (err) {
-        console.error('Failed to initialize chat data', err);
+        if (!cancelled) setChatError(err.response?.status === 429
+          ? 'Chat is temporarily busy. Please wait a moment, then try again.'
+          : err.response?.data?.error?.message || 'Could not connect to your session. Please try again.');
       } finally {
-        setIsSessionStarting(false);
+        if (!cancelled) setIsSessionStarting(false);
       }
     };
     initData();
-  }, [navigate]);
+    return () => { cancelled = true; };
+  }, [navigate, sessionRetryKey]);
 
   const handleEndSession = async () => {
-    if (!sessionId) return;
+    if (!sessionId || isRefreshingProfile || isSessionStarting) return;
+    activeStreamRef.current?.abort();
     setIsSessionStarting(true);
-    setLoadingMessage('Saving your session & updating profile...');
+    setLoadingMessage('Saving your session...');
     try {
       await chatAPI.endSession(sessionId);
       try {
-        const [profileRes, memoriesRes] = await Promise.all([
-          profileAPI.getProfile(),
-          profileAPI.getMemories()
-        ]);
+        const profileRes = await profileAPI.getProfile();
         if (profileRes) setProfile(profileRes);
-        if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
       } catch (e) {
         console.error('Failed to fetch updated profile', e);
       }
       setSessionId(null);
       setMessages([]);
+      setChatBlocked(false);
+      setChatError('');
       setLoadingMessage('Starting new session...');
       const sessionRes = await chatAPI.createSession();
       if (sessionRes && sessionRes.id) {
@@ -99,109 +140,166 @@ export default function Chat() {
         setMessages(sessionRes.recentMessages || []);
       }
     } catch (err) {
-      console.error('Failed to end session', err);
+      setChatError(err.response?.data?.error?.message || 'Could not end the session. Please try again.');
     } finally {
       setIsSessionStarting(false);
+      refreshUsage();
     }
   };
 
   const handleOpenProfile = async () => {
     setIsProfileOpen(true);
     try {
-      const [profileRes, memoriesRes] = await Promise.all([
-        profileAPI.getProfile(),
-        profileAPI.getMemories()
-      ]);
+      const profileRes = await profileAPI.getProfile();
       if (profileRes) setProfile(profileRes);
-      if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
     } catch (e) {
       console.error('Failed to refresh profile', e);
     }
   };
 
-  const handleRefreshProfile = async () => {
-    if (!sessionId || isRefreshingProfile) return;
-    setIsRefreshingProfile(true);
+  const handleLogout = async () => {
     try {
-      await chatAPI.refreshProfileMidSession(sessionId);
-      const [profileRes, memoriesRes] = await Promise.all([
-        profileAPI.getProfile(),
-        profileAPI.getMemories()
-      ]);
-      if (profileRes) setProfile(profileRes);
-      if (memoriesRes && memoriesRes.memories) setMemories(memoriesRes.memories);
+      await logout();
+    } catch {
+      setChatError('Logout could not be confirmed. Please try again.');
+    }
+  };
+
+  const handleRefreshProfile = async () => {
+    if (!sessionId || isRefreshingProfile || isTyping || isSessionStarting) return;
+    const currentSessionId = sessionId;
+    setIsRefreshingProfile(true);
+    setChatError('');
+    setProfileUpdateNotice('Looking for important details to save from this conversation...');
+    try {
+      const started = await chatAPI.refreshProfileMidSession(currentSessionId);
+      let status = started?.status;
+      const jobId = started?.jobId;
+      for (let attempt = 0; attempt < 45 && status !== 'COMPLETED' && status !== 'FAILED' && status !== 'SUPERSEDED' && status !== 'NOT_QUEUED'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        status = (await chatAPI.getExtractionStatus(currentSessionId, jobId)).status;
+      }
+      if (status === 'COMPLETED') {
+        const [updated, profileSuggestions, memorySuggestions] = await Promise.all([
+          profileAPI.getProfile(), profileAPI.getProfileCandidates(), profileAPI.getCandidates({ offset: 0, limit: 1 }),
+        ]);
+        if (updated) setProfile(updated);
+        setProfileReviewKey(key => key + 1);
+        setIsProfileOpen(true);
+        const count = (profileSuggestions?.length || 0) + (memorySuggestions?.total || 0);
+        setProfileUpdateNotice(count > 0
+          ? `${count} profile or memory suggestion${count === 1 ? '' : 's'} available to review. Apply the ones you want to keep.`
+          : 'No lasting personal details were identified in this conversation yet. You can add a memory yourself in Profile.');
+      } else if (status === 'NOT_QUEUED') {
+        setProfileUpdateNotice('Share something in this conversation first, then try updating your profile.');
+      } else if (status === 'FAILED' || status === 'SUPERSEDED') {
+        setProfileUpdateNotice('Profile suggestions could not be prepared. Your chat is still here; try again later.');
+      } else {
+        setProfileUpdateNotice('Profile suggestions are still processing. Open your profile and refresh suggestions in a moment.');
+      }
     } catch (e) {
-      console.error('Failed to refresh profile mid-session', e);
+      setChatError(e.response?.data?.error?.message || e.message || 'Could not update your profile. Please try again.');
+      setProfileUpdateNotice('');
     } finally {
       setIsRefreshingProfile(false);
     }
   };
 
-  const readStream = async (reader, decoder) => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const dataStr = line.slice(5);
-            if (dataStr === '[DONE]') { setIsTyping(false); break; }
-            if (dataStr) {
-              if (dataStr === '[ERROR: RATE_LIMIT_EXCEEDED]') {
-                setMessages(prev => {
-                  const lastMsg = prev[prev.length - 1];
-                  if (lastMsg && lastMsg.isStreaming) {
-                    return [...prev.slice(0, -1), { ...lastMsg, content: '⚠️ Rate limit exceeded. The AI provider is receiving too many requests. Please try again in 5 seconds.' }];
-                  } else {
-                    return [...prev, { id: Date.now(), senderRole: 'ASSISTANT', content: '⚠️ Rate limit exceeded. Please try again in 5 seconds.', isStreaming: false }];
-                  }
-                });
-                setIsTyping(false);
-                break;
-              }
-              setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg && lastMsg.senderRole === 'ASSISTANT' && lastMsg.isStreaming) {
-                  return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + dataStr }];
-                } else {
-                  return [...prev, { id: Date.now(), senderRole: 'ASSISTANT', content: dataStr, isStreaming: true }];
-                }
-              });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Stream reading error', err);
-    } finally {
-      setIsTyping(false);
-      setMessages(prev => {
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg && lastMsg.isStreaming) {
-          return [...prev.slice(0, -1), { ...lastMsg, isStreaming: false }];
-        }
-        return prev;
-      });
-    }
-  };
-
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !sessionId) return;
+    if (!input.trim() || !sessionId || isTyping || isRefreshingProfile || chatBlocked) return;
     const userMsg = { id: Date.now(), senderRole: 'USER', content: input };
+    const streamMessageId = crypto.randomUUID();
+    const controller = new AbortController();
+    activeStreamRef.current = controller;
+    setChatError('');
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
+    setResponsePhase('thinking');
     try {
-      const response = await chatAPI.createStreamSource(sessionId, userMsg.content);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      await readStream(reader, decoder);
+      const response = await chatAPI.createStreamSource(sessionId, userMsg.content, { signal: controller.signal });
+      let sawDelta = false;
+      let completed = false;
+      let terminalError = null;
+      let requestId = response.headers.get('X-Request-Id');
+      await readChatStream(response, (name, data) => {
+        requestId = data.requestId;
+        if (name === 'start') {
+          setMessages(prev => prev.map(message => message.id === userMsg.id
+            ? { ...message, id: data.userMessageId } : message));
+        } else if (name === 'delta') {
+          sawDelta = true;
+          setResponsePhase('responding');
+          setMessages(prev => {
+            const existing = prev.findIndex(message => message.id === streamMessageId);
+            if (existing === -1) return [...prev, { id: streamMessageId, senderRole: 'ASSISTANT', content: data.text, isStreaming: true }];
+            return prev.map(message => message.id === streamMessageId
+              ? { ...message, content: message.content + data.text } : message);
+          });
+        } else if (name === 'complete') {
+          completed = true;
+          setMessages(prev => prev.map(message => message.id === streamMessageId
+            ? { ...message, id: data.assistantMessageId, isStreaming: false } : message));
+        } else if (name === 'error') {
+          terminalError = data.message || 'The AI service could not complete this request.';
+          setMessages(prev => prev.filter(message => message.id !== streamMessageId));
+        }
+      });
+      if (terminalError) setChatError(terminalError);
+      if (completed && !sawDelta && requestId) {
+        try {
+          const status = await chatAPI.getRequestStatus(requestId);
+          if (status.assistantMessage) setMessages(prev => [...prev, status.assistantMessage]);
+          else {
+            setChatError('The reply is being checked. Refresh the session before sending again.');
+            setChatBlocked(true);
+          }
+        } catch {
+          setChatError('The reply could not be loaded. Refresh the session before sending again.');
+          setChatBlocked(true);
+        }
+      }
     } catch (err) {
-      console.error('Failed to send message', err);
+      if (!controller.signal.aborted) {
+        if (err.requestId) {
+          try {
+            const status = await chatAPI.getRequestStatus(err.requestId);
+            if (status.status === 'completed' && status.assistantMessage) {
+              setMessages(prev => [...prev.filter(message => message.id !== streamMessageId), status.assistantMessage]);
+            } else {
+              setMessages(prev => prev.filter(message => message.id !== streamMessageId));
+              setChatError(status.status === 'failed'
+                ? 'The AI service could not complete this request.'
+                : 'The request is still being checked. Refresh the session before sending again.');
+              if (status.status !== 'failed') setChatBlocked(true);
+            }
+          } catch {
+            setChatError('The connection ended before the result could be confirmed. Refresh before sending again.');
+            setChatBlocked(true);
+          }
+        } else {
+          if (err.status === 429) {
+            const reset = err.resetAt || usage?.resetAt;
+            const resetTime = reset && !Number.isNaN(Date.parse(reset))
+              ? ` Please try again after ${new Date(reset).toLocaleString()}.` : '';
+            const waitTime = err.retryAfter && Number.isFinite(Number(err.retryAfter))
+              ? ` Please try again in ${err.retryAfter} seconds.` : '';
+            setChatError(err.message + (err.code === 'RATE_LIMITED' && err.retryAfter ? waitTime : resetTime));
+          } else if (err.code === 'ACCOUNTING_UNAVAILABLE') {
+            setChatError('Usage accounting is temporarily unavailable. Please try again later.');
+          } else {
+            setChatError(err.message || 'Could not send your message.');
+          }
+          setMessages(prev => prev.filter(message => message.id !== userMsg.id));
+          setInput(userMsg.content);
+        }
+      }
+    } finally {
+      if (activeStreamRef.current === controller) activeStreamRef.current = null;
       setIsTyping(false);
+      setResponsePhase('thinking');
+      refreshUsage();
     }
   };
 
@@ -219,7 +317,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-background text-on-surface relative overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-var(--demo-banner-height,0px))] bg-background text-on-surface relative overflow-hidden">
       {enable3DBackground ? (
           <div className="absolute inset-0 z-0 bg-surface">
             {/* Desktop: Animated 3D Galaxy */}
@@ -250,8 +348,8 @@ export default function Chat() {
       <header className="glass-morphism-nav border-b border-outline-variant/10 z-50 relative">
         <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
           {/* Logo + session info */}
-          <div className="flex items-center gap-4">
-            <span className="text-xl font-bold tracking-tight text-primary font-headline">TrustTherapy.ai</span>
+          <div className="flex items-center gap-4 min-w-0">
+            <button type="button" onClick={() => navigate('/home')} className="min-h-11 text-lg sm:text-xl font-bold tracking-tight text-primary font-headline truncate" title="Back to your overview">TrustTherapy.ai</button>
             <div className="hidden md:flex items-center gap-2 glass-morphism rounded-full px-4 py-1.5 border border-outline-variant/10">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-on-surface-variant tracking-wide font-medium">Session Active</span>
@@ -269,8 +367,8 @@ export default function Chat() {
             {sessionId && !isSessionStarting && (
               <button
                 onClick={handleRefreshProfile}
-                disabled={isRefreshingProfile}
-                title="Update your profile traits from this conversation"
+                disabled={isRefreshingProfile || isTyping}
+                title="Find important profile and memory suggestions without ending this chat"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all disabled:opacity-50 disabled:cursor-wait"
               >
                 <span className="text-sm">🔃</span>
@@ -282,6 +380,7 @@ export default function Chat() {
             {sessionId && !isSessionStarting && (
               <button
                 onClick={handleEndSession}
+                disabled={isRefreshingProfile || isTyping}
                 title="End current session and start a new one"
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-error/30 text-error hover:bg-error/10 transition-all"
               >
@@ -305,14 +404,14 @@ export default function Chat() {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 -mr-2 text-on-surface-variant hover:text-on-surface transition-colors"
+              className="md:hidden min-w-11 min-h-11 flex items-center justify-center -mr-2 text-on-surface-variant hover:text-on-surface transition-colors"
             >
               <span className="material-symbols-outlined">menu</span>
             </button>
 
             {/* Logout */}
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="hidden md:block px-4 py-1.5 rounded-full text-sm font-semibold glass-morphism border border-outline-variant/20 text-on-surface-variant hover:text-on-surface transition-all"
             >
               Logout
@@ -328,9 +427,10 @@ export default function Chat() {
               <>
                 <button
                   onClick={() => { handleRefreshProfile(); setIsMobileMenuOpen(false); }}
+                  disabled={isRefreshingProfile || isTyping}
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container-low hover:bg-primary/5 text-primary text-sm font-semibold text-left transition-colors border border-outline-variant/10"
                 >
-                  <span className="text-lg">🔃</span> Update Tracking
+                  <span className="text-lg">🔃</span> Update Profile
                 </button>
                 <button
                   onClick={() => { handleOpenProfile(); setIsMobileMenuOpen(false); }}
@@ -340,6 +440,7 @@ export default function Chat() {
                 </button>
                 <button
                   onClick={() => { handleEndSession(); setIsMobileMenuOpen(false); }}
+                  disabled={isRefreshingProfile || isTyping}
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container-low hover:bg-error/5 text-error text-sm font-semibold text-left transition-colors border border-outline-variant/10"
                 >
                   <span className="text-lg">🔄</span> Start New Session
@@ -347,7 +448,7 @@ export default function Chat() {
               </>
             )}
             <button
-              onClick={() => { logout(); setIsMobileMenuOpen(false); }}
+              onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
               className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-sm font-semibold text-left mt-2 border border-outline-variant/20"
             >
               <span className="material-symbols-outlined text-lg">logout</span> Logout
@@ -366,14 +467,34 @@ export default function Chat() {
           </div>
         ) : (
           <>
+            {!sessionId && (
+              <div className="flex-1 flex items-center justify-center px-4">
+                <div className="max-w-md w-full rounded-3xl bg-surface-container-low border border-outline-variant/20 p-8 text-center shadow-lg">
+                  <span className="material-symbols-outlined text-primary text-4xl" aria-hidden="true">wifi_off</span>
+                  <h1 className="font-headline text-2xl font-bold mt-3">We couldn’t open your chat</h1>
+                  <p role="alert" className="text-on-surface-variant mt-3">{chatError || 'Your conversation is safe. Try connecting again.'}</p>
+                  <div className="flex flex-wrap justify-center gap-3 mt-6">
+                    <button onClick={() => { setIsSessionStarting(true); setSessionRetryKey(key => key + 1); }} className="rounded-full bg-primary text-on-primary px-5 py-2.5 font-semibold">Try again</button>
+                    <button onClick={() => navigate('/home')} className="rounded-full border border-outline-variant/30 px-5 py-2.5 font-semibold">Back to overview</button>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* ── Messages Area ── */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 px-4 md:px-12 lg:px-24 py-8 pb-4">
+            {sessionId && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-6 md:space-y-8 px-4 md:px-12 lg:px-24 py-5 md:py-8 pb-4">
               {/* Date divider */}
               <div className="flex justify-center">
                 <span className="text-[10px] font-bold text-on-surface-variant/40 tracking-[0.2em] uppercase">
                   {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </span>
               </div>
+
+              {messages.length === 0 && (
+                <div className="mx-auto max-w-lg text-center py-12">
+                  <h1 className="font-headline text-2xl font-bold">Your conversation is ready</h1>
+                  <p className="text-on-surface-variant mt-3">Share what is on your mind. You can return to this chat later.</p>
+                </div>
+              )}
 
               {messages.map((msg, idx) => (
                 <div
@@ -411,22 +532,27 @@ export default function Chat() {
                 </div>
               ))}
 
-              {/* Typing indicator */}
+              {/* Response progress */}
               {isTyping && (
-                <div className="flex items-center gap-2 ml-2 mr-auto">
-                  <div className="flex gap-1.5 px-4 py-3 rounded-full glass-morphism border border-outline-variant/10">
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: '-0.3s' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: '-0.15s' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" />
+                <div className="flex justify-start">
+                  <div role="status" aria-live="polite" className="inline-flex w-fit max-w-[85%] items-center gap-2 rounded-xl glass-morphism border border-outline-variant/10 px-4 py-3 text-sm text-on-surface-variant">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+                    AI Guide is {responsePhase === 'thinking' ? 'thinking about your message' : 'responding'}
                   </div>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
-            </div>
+            </div>}
 
             {/* ── Input Bar ── */}
-            <div className="p-3 md:p-6 lg:p-8 pointer-events-none relative z-20">
+            {sessionId && <div className="px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:p-6 lg:p-8 pointer-events-none relative z-20">
+              {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
+              {profileUpdateNotice && <p role="status" className="max-w-4xl mx-auto mb-3 text-sm text-primary pointer-events-auto">{profileUpdateNotice}</p>}
+              {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
+                {usage.tier} · {usage.remainingRequests} daily requests and {usage.remainingTokens.toLocaleString()} tokens remaining
+                {usage.resetAt && !Number.isNaN(Date.parse(usage.resetAt)) && ` · Resets ${new Date(usage.resetAt).toLocaleString()}`}
+              </p>}
               <form onSubmit={handleSend} className="max-w-4xl mx-auto pointer-events-auto">
                 <div className="glass-morphism p-1.5 md:p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-2 md:gap-3">
                   <input
@@ -434,22 +560,22 @@ export default function Chat() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     placeholder="Share your thoughts..."
-                    disabled={isTyping}
-                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 px-3 md:px-4 font-medium text-[15px] md:text-base disabled:cursor-not-allowed"
+                    disabled={isTyping || isRefreshingProfile || chatBlocked || !sessionId}
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/60 px-3 md:px-4 font-medium text-base disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || isTyping}
-                    className="h-10 md:h-11 px-5 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    disabled={!input.trim() || isTyping || isRefreshingProfile || chatBlocked || !sessionId}
+                    className="h-11 min-w-11 px-4 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     Send
                   </button>
                 </div>
-                <p className="text-center mt-3 text-[10px] text-on-surface-variant/30 font-bold uppercase tracking-[0.3em]">
-                  End-to-End Encrypted Session
+                <p className="hidden sm:block text-center mt-3 text-[10px] text-on-surface-variant/50 font-bold uppercase tracking-[0.2em]">
+                  Encrypted in transit and sensitive fields protected at rest
                 </p>
               </form>
-            </div>
+            </div>}
           </>
         )}
       </div>
@@ -468,15 +594,16 @@ export default function Chat() {
           <>
             <button
               onClick={handleRefreshProfile}
-              disabled={isRefreshingProfile}
+              disabled={isRefreshingProfile || isTyping}
               className="w-12 h-12 flex items-center justify-center rounded-2xl glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-secondary transition-all hover:scale-110 group relative disabled:opacity-50"
-              title="Update Profile"
+              title="Find important profile and memory suggestions without ending this chat"
             >
               🔃
               <span className="absolute right-full mr-3 px-3 py-1 rounded bg-surface-container-high text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Update Profile</span>
             </button>
             <button
               onClick={handleEndSession}
+              disabled={isRefreshingProfile || isTyping}
               className="w-12 h-12 flex items-center justify-center rounded-2xl glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-error transition-all hover:scale-110 group relative"
               title="New Session"
             >
@@ -492,7 +619,12 @@ export default function Chat() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profile={profile}
-        memories={memories}
+        profileReviewKey={profileReviewKey}
+        onProfileChanged={setProfile}
+        onProfileDeleted={() => navigate('/about-you', { replace: true })}
+        usage={usage}
+        usageError={usageError}
+        onRefreshUsage={refreshUsage}
         enable3DBackground={enable3DBackground}
         onToggle3DBackground={toggle3DBackground}
       />

@@ -15,28 +15,52 @@ import java.util.UUID;
 @Repository
 public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, UUID> {
 
+    long countByUserIdAndStatus(UUID userId, String status);
+
     /**
      * Returns the top N memories for a user, ordered by importance (highest first).
      * Used by PromptBuilder to inject context into the AI system prompt.
      */
     @Query("""
-        SELECT m FROM LongTermMemory m
+        SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
-           AND m.isResolved = false
+           AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
+           AND m.sourceRevision = m.user.contextRevision
+           AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
+           AND (sc.id IS NULL OR sc.contextEligible = true)
          ORDER BY m.importance DESC
          LIMIT :limit
         """)
     List<LongTermMemory> findTopByImportance(@Param("userId") UUID userId,
                                              @Param("limit") int limit);
 
+    /** Small confirmed-only candidate set; relevance ranking happens after decryption in application memory. */
+    @Query("""
+        SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
+         WHERE m.user.id = :userId AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
+           AND m.sourceRevision = m.user.contextRevision
+           AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
+           AND (sc.id IS NULL OR sc.contextEligible = true)
+         ORDER BY m.followUpAt ASC NULLS LAST, m.importance DESC, m.createdAt DESC
+         LIMIT :limit
+        """)
+    List<LongTermMemory> findEligibleContextCandidates(@Param("userId") UUID userId,
+                                                        @Param("limit") int limit);
+
     /**
      * Memories with a follow-up date due today or overdue.
      * Injected as "ask about this today" items in the AI system prompt.
      */
     @Query("""
-        SELECT m FROM LongTermMemory m
+        SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
          WHERE m.user.id = :userId
-           AND m.isResolved = false
+           AND m.status = 'active'
+           AND m.confirmedAt IS NOT NULL
+           AND m.sourceRevision = m.user.contextRevision
+           AND (m.expiresAt IS NULL OR m.expiresAt > CURRENT_TIMESTAMP)
+           AND (sc.id IS NULL OR sc.contextEligible = true)
            AND m.followUpAt IS NOT NULL
            AND m.followUpAt <= :today
          ORDER BY m.importance DESC
@@ -48,6 +72,8 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
     @Query("""
         SELECT m FROM LongTermMemory m
          WHERE m.user.id = :userId
+           AND m.status <> 'pending'
+           AND m.confirmedAt IS NOT NULL
            AND (:type IS NULL OR m.memoryType = :type)
            AND (:resolved IS NULL OR m.isResolved = :resolved)
          ORDER BY m.importance DESC, m.createdAt DESC
@@ -62,6 +88,22 @@ public interface LongTermMemoryRepository extends JpaRepository<LongTermMemory, 
 
     /** Find all memories for a user (useful for in-memory decryption filtering) */
     List<LongTermMemory> findByUserId(UUID userId);
+
+    @Query("""
+        SELECT m FROM LongTermMemory m LEFT JOIN m.sourceConversation sc
+         WHERE m.user.id = :userId AND m.status = :status
+           AND m.sourceRevision = m.user.contextRevision
+           AND (sc.id IS NULL OR sc.contextEligible = true)
+         ORDER BY m.createdAt DESC
+        """)
+    Page<LongTermMemory> findByUserIdAndStatusOrderByCreatedAtDesc(@Param("userId") UUID userId,
+            @Param("status") String status, Pageable pageable);
+
+    java.util.Optional<LongTermMemory> findByIdAndUserId(UUID id, UUID userId);
+
+    boolean existsBySourceOutputId(UUID sourceOutputId);
+
+    List<LongTermMemory> findByUserIdAndSourceConversationId(UUID userId, UUID sourceConversationId);
 
     /** Delete all long-term memories for a given user */
     void deleteAllByUserId(UUID userId);

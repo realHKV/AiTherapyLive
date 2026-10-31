@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { profileAPI } from '../api/profile';
-
-const RAZORPAY_LINK = 'https://rzp.io/rzp/PhFTaZ2';
+import { useSubscription } from '../context/subscriptionStore';
 
 const THERAPISTS = [
   {
@@ -94,7 +93,7 @@ function TherapistCard({ therapist, selected, onSelect }) {
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-6 mb-5 pb-5 border-b border-outline-variant/10">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 mb-5 pb-5 border-b border-outline-variant/10">
         {[
           { label: 'Tone', value: therapist.tone },
           { label: 'Focus', value: therapist.focus },
@@ -130,7 +129,9 @@ function TherapistCard({ therapist, selected, onSelect }) {
 
 export default function ChooseTherapist() {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState(null);
+  const location = useLocation();
+  const { startUpgrade, upgradeLoading, upgradeError } = useSubscription();
+  const [selected, setSelected] = useState(location.state?.currentGuide || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showPlanStep, setShowPlanStep] = useState(false);
@@ -141,8 +142,9 @@ export default function ChooseTherapist() {
     setError(null);
     try {
       await profileAPI.saveTherapist(selected);
-      setShowPlanStep(true); // Show plan selection instead of navigating
-    } catch (err) {
+      if (location.state?.fromHome) navigate('/home', { replace: true });
+      else setShowPlanStep(true);
+    } catch {
       setError('Could not save your selection. Please try again.');
     } finally {
       setSaving(false);
@@ -150,13 +152,10 @@ export default function ChooseTherapist() {
   };
 
   const handleChooseFree = () => {
-    navigate('/chat');
+    navigate('/home');
   };
 
-  const handleChoosePro = () => {
-    window.open(RAZORPAY_LINK, '_blank', 'noopener,noreferrer');
-    navigate('/chat');
-  };
+  const handleChoosePro = () => startUpgrade(() => navigate('/home'));
 
   return (
     <div className="min-h-screen bg-background text-on-surface relative overflow-hidden dark">
@@ -181,10 +180,10 @@ export default function ChooseTherapist() {
             Final Step · 3 of 3
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold font-headline mb-4">
-            <span className="text-gradient">Choose your therapist</span>
+            <span className="text-gradient">Choose your AI guide</span>
           </h1>
           <p className="text-lg text-on-surface-variant max-w-xl mx-auto leading-relaxed">
-            Both therapists are powered by the same AI — but each brings a distinct style. Choose the one that resonates with you. You can always switch later.
+            Both guides are AI personas with distinct conversation styles. Choose the one that feels right for you. You can switch later.
           </p>
         </div>
 
@@ -216,10 +215,10 @@ export default function ChooseTherapist() {
                 ? 'Saving...'
                 : selected
                 ? `Start sessions with ${THERAPISTS.find(t => t.id === selected)?.name} →`
-                : 'Select a therapist to continue'
+                : 'Select an AI guide to continue'
               }
             </button>
-            <p className="text-xs text-on-surface-variant/50">You can change your therapist anytime from settings.</p>
+            <p className="text-xs text-on-surface-variant/50">You can change your AI guide later.</p>
           </div>
         )}
 
@@ -244,7 +243,7 @@ export default function ChooseTherapist() {
                 </div>
                 <p className="font-headline text-3xl font-extrabold">₹0<span className="text-sm font-normal text-on-surface-variant">/mo</span></p>
                 <ul className="space-y-2 text-xs text-on-surface-variant">
-                  {['Unlimited sessions', 'AI memory & profile', 'Encrypted chats'].map(f => (
+                  {['Daily AI usage allowance', 'AI memory & profile', 'Sensitive text encrypted at rest'].map(f => (
                     <li key={f} className="flex items-center gap-2">
                       <span className="text-primary">✓</span> {f}
                     </li>
@@ -267,7 +266,7 @@ export default function ChooseTherapist() {
                   <h3 className="font-headline text-xl font-bold mb-0.5 text-primary">Pro</h3>
                   <p className="text-xs text-on-surface-variant">A smarter AI, built for you.</p>
                 </div>
-                <p className="font-headline text-3xl font-extrabold">₹50<span className="text-sm font-normal text-on-surface-variant">/mo</span></p>
+                <p className="font-headline text-3xl font-extrabold">₹50<span className="text-sm font-normal text-on-surface-variant"> for 30 days</span></p>
                 <ul className="space-y-2 text-xs">
                   {['Everything in Free', 'Priority AI model', 'Faster responses', 'Early features'].map(f => (
                     <li key={f} className="flex items-center gap-2 text-on-surface font-medium">
@@ -277,11 +276,13 @@ export default function ChooseTherapist() {
                 </ul>
                 <button
                   onClick={handleChoosePro}
-                  className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+                  disabled={upgradeLoading}
+                  className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  Upgrade to Pro →
+                  {upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro →'}
                 </button>
-                <p className="text-center text-[10px] text-on-surface-variant/50">Secure · Razorpay · Cancel anytime</p>
+                <p className="text-center text-[10px] text-on-surface-variant/50">One-time payment via Razorpay</p>
+                {upgradeError && <p role="alert" className="text-xs text-error">{upgradeError}</p>}
               </div>
             </div>
           </div>
@@ -290,7 +291,7 @@ export default function ChooseTherapist() {
 
       {/* Footer */}
       <footer className="py-8 px-8 bg-surface-container-lowest border-t border-outline-variant/10">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-center">
           <div className="text-sm font-bold text-primary font-headline">TrustTherapy.ai</div>
           <p className="text-xs text-on-surface/40">© 2026 TrustTherapy.ai. Secure &amp; Encrypted.</p>
         </div>

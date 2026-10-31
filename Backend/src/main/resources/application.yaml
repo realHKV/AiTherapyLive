@@ -2,6 +2,9 @@ spring:
   application:
     name: AiTherapy
 
+  jackson:
+    use-jackson2-defaults: true
+
   # ─── Database ────────────────────────────────────────────────────────────────
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/therapyai}
@@ -49,6 +52,26 @@ spring:
           max-idle: 4
           min-idle: 1
 
+  session:
+    data:
+      redis:
+        namespace: aitherapy:oauth-session
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  task:
+    scheduling:
+      pool:
+        size: 2
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
+
+
   # ─── Security / OAuth2 ───────────────────────────────────────────────────────
   security:
     oauth2:
@@ -80,15 +103,53 @@ encryption:
 
 # ─── AI Provider ─────────────────────────────────────────────────────────────
 ai:
-  provider:
-    base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
-    api-key: ${AI_API_KEY:}
-    model: ${AI_MODEL:llama-3.1-8b-instant}
-    pro-base-url: ${AI_PRO_BASE_URL:${ai.provider.base-url}}
-    pro-api-key: ${AI_PRO_API_KEY:${ai.provider.api-key}}
-    pro-model: ${AI_PRO_MODEL:${ai.provider.model}}
-    max-tokens: 512
-    temperature: 0.75
+  bedrock:
+    enabled: ${AI_BEDROCK_ENABLED:false}
+    region: ${BEDROCK_REGION:}
+    connect-timeout: ${BEDROCK_CONNECT_TIMEOUT:2s}
+    api-call-timeout: ${BEDROCK_API_CALL_TIMEOUT:45s}
+    api-call-attempt-timeout: ${BEDROCK_API_CALL_ATTEMPT_TIMEOUT:40s}
+  usage:
+    policy-id: ${AI_USAGE_POLICY_ID:beta-v1}
+    region: ${BEDROCK_REGION:unconfigured}
+    free:
+      daily-requests: ${AI_USAGE_FREE_DAILY_REQUESTS:20}
+      daily-tokens: ${AI_USAGE_FREE_DAILY_TOKENS:24000}
+      per-minute-requests: ${AI_USAGE_FREE_PER_MINUTE_REQUESTS:5}
+    pro:
+      daily-requests: ${AI_USAGE_PRO_DAILY_REQUESTS:60}
+      daily-tokens: ${AI_USAGE_PRO_DAILY_TOKENS:100000}
+      per-minute-requests: ${AI_USAGE_PRO_PER_MINUTE_REQUESTS:10}
+    account:
+      daily-requests: ${AI_USAGE_ACCOUNT_DAILY_REQUESTS:1000}
+      daily-tokens: ${AI_USAGE_ACCOUNT_DAILY_TOKENS:1000000}
+    model:
+      daily-requests: ${AI_USAGE_MODEL_DAILY_REQUESTS:500}
+      daily-tokens: ${AI_USAGE_MODEL_DAILY_TOKENS:500000}
+    lease-seconds: ${AI_USAGE_LEASE_SECONDS:120}
+  routing:
+    enabled: ${AI_ROUTING_ENABLED:false}
+    policy-id: ${AI_ROUTING_POLICY_ID:}
+    free-model-id: ${BEDROCK_FREE_MODEL_ID:}
+    pro-model-id: ${BEDROCK_PRO_MODEL_ID:}
+    summary-model-id: ${BEDROCK_SUMMARY_MODEL_ID:}
+  chat:
+    v2:
+      enabled: ${AI_CHAT_V2_ENABLED:false}
+    workers: ${AI_CHAT_WORKERS:8}
+    queue-capacity: ${AI_CHAT_QUEUE_CAPACITY:64}
+    stream-timeout: ${AI_CHAT_STREAM_TIMEOUT:90s}
+    first-token-timeout: ${AI_CHAT_FIRST_TOKEN_TIMEOUT:15s}
+    total-timeout: ${AI_CHAT_TOTAL_TIMEOUT:60s}
+    max-input-tokens: ${AI_CHAT_MAX_INPUT_TOKENS:6000}
+    max-output-tokens: ${AI_CHAT_MAX_OUTPUT_TOKENS:1500}
+  extraction:
+    worker-enabled: ${AI_EXTRACTION_WORKER_ENABLED:false}
+    poll-interval-ms: ${AI_EXTRACTION_POLL_INTERVAL_MS:5000}
+    policy-version: ${AI_EXTRACTION_POLICY_VERSION:session-extraction-v1}
+    max-attempts: ${AI_EXTRACTION_MAX_ATTEMPTS:5}
+    lease: ${AI_EXTRACTION_LEASE:PT2M}
+    max-output-tokens: ${AI_EXTRACTION_MAX_OUTPUT_TOKENS:1800}
   limits:
     messages-per-hour: 20
     context-messages: 20
@@ -101,21 +162,50 @@ cors:
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging:
+  structured:
+    format:
+      console: logstash
   level:
     com.hkv.AiTherapy: INFO
-    org.springframework.security: DEBUG
+    org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  pattern:
-    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
 
 # ─── Server ──────────────────────────────────────────────────────────────────
 server:
   port: 8080
+  forward-headers-strategy: native
+  shutdown: graceful
   servlet:
+    session:
+      timeout: 5m
     context-path: /api/v1
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      show-components: never
+      group:
+        readiness:
+          include: readinessState,db,redis
+        liveness:
+          include: livenessState
+  health:
+    bedrock:
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 # ─── Razorpay ────────────────────────────────────────────────────────────────────────────────
 razorpay:
@@ -126,3 +216,5 @@ razorpay:
 # ─── App flags ───────────────────────────────────────────────────────────────────────────────
 app:
   dev-mode: ${DEV_MODE:false}   # set to true in .env to enable /dev/* endpoints
+  auth:
+    oauth-ticket-handoff: ${OAUTH_TICKET_HANDOFF:false}

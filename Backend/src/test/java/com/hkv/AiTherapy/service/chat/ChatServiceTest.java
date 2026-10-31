@@ -7,9 +7,11 @@ import com.hkv.AiTherapy.domain.User;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
+import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
-import com.hkv.AiTherapy.service.job.SessionEndedEvent;
+import com.hkv.AiTherapy.service.job.ExtractionJobQueue;
+import com.hkv.AiTherapy.service.payment.EntitlementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,10 +23,15 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import com.hkv.AiTherapy.dto.request.ChatMessageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
@@ -36,11 +43,17 @@ class ChatServiceTest {
     @Mock
     private TherapyProfileRepository therapyProfileRepository;
     @Mock
+    private UserRepository userRepository;
+    @Mock
     private AIGateway aiGateway;
     @Mock
     private PromptBuilder promptBuilder;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private EntitlementService entitlementService;
+    @Mock
+    private ExtractionJobQueue extractionJobQueue;
 
     @InjectMocks
     private ChatService chatService;
@@ -70,9 +83,31 @@ class ChatServiceTest {
     }
 
     @Test
+    void activeSessionReturnsRecentMessagesWithoutStartingAnotherConversation() {
+        Message older = Message.builder().id(UUID.randomUUID()).conversation(testConversation)
+                .role("user").content("I had a difficult day").build();
+        Message newer = Message.builder().id(UUID.randomUUID()).conversation(testConversation)
+                .role("assistant").content("Would you like to talk about it?").build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active"))
+                .thenReturn(Optional.of(testConversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtDescIdDesc(eq(conversationId), any()))
+                .thenReturn(List.of(newer, older));
+
+        var response = chatService.activeSession(userId);
+
+        assertEquals(conversationId.toString(), response.getId());
+        assertEquals("I had a difficult day", response.getRecentMessages().get(0).getContent());
+        assertEquals("Would you like to talk about it?", response.getRecentMessages().get(1).getContent());
+        verifyNoInteractions(aiGateway, promptBuilder);
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
     void testEndSession_FiresEventAndUpdatesProfile() {
         // Arrange
-        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
         when(therapyProfileRepository.findByUserId(userId)).thenReturn(Optional.of(testProfile));
 
         // Act
@@ -86,10 +121,52 @@ class ChatServiceTest {
         verify(conversationRepository).save(testConversation);
         verify(therapyProfileRepository).save(testProfile);
 
-        ArgumentCaptor<SessionEndedEvent> eventCaptor = ArgumentCaptor.forClass(SessionEndedEvent.class);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-        
-        SessionEndedEvent firedEvent = eventCaptor.getValue();
-        assertEquals(conversationId, firedEvent.conversationId());
+        verify(extractionJobQueue).enqueue(userId, conversationId, testUser.getContextRevision());
+        verify(eventPublisher).publishEvent(any(ConversationEndedEvent.class));
+    }
+
+    @Test
+    void repeatedEndDoesNotIncrementCountsOrRepublishEvent() {
+        testConversation.setStatus("completed");
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
+
+        chatService.endSession(userId, conversationId);
+
+        verifyNoInteractions(therapyProfileRepository, eventPublisher);
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void profileRefreshQueuesCurrentMessageWithoutEndingSession() {
+        UUID messageId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Message message = Message.builder().id(messageId).conversation(testConversation).role("user")
+                .content("I am studying nursing.").build();
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findByIdForUpdate(conversationId)).thenReturn(Optional.of(testConversation));
+        when(messageRepository.findFirstByConversationIdAndRoleOrderByCreatedAtDescIdDesc(conversationId, "user"))
+                .thenReturn(Optional.of(message));
+        when(messageRepository.findFirstByConversationIdOrderByCreatedAtDescIdDesc(conversationId))
+                .thenReturn(Optional.of(message));
+        when(extractionJobQueue.enqueueRefresh(userId, conversationId, testUser.getContextRevision(), messageId))
+                .thenReturn(jobId);
+
+        assertEquals(jobId, chatService.requestProfileRefresh(userId, conversationId));
+        assertEquals("active", testConversation.getStatus());
+        verifyNoInteractions(therapyProfileRepository, eventPublisher);
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void anotherUserCannotSendMessageToConversation() {
+        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(testConversation));
+        ChatMessageRequest request = new ChatMessageRequest();
+        request.setContent("Synthetic message");
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> chatService.sendMessage(UUID.randomUUID(), conversationId, request));
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatusCode());
+        verifyNoInteractions(messageRepository, aiGateway);
     }
 }

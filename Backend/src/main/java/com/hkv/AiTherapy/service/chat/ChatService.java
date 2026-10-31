@@ -12,13 +12,16 @@ import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.MessageRepository;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
-import com.hkv.AiTherapy.repository.UserSubscriptionRepository;
+import com.hkv.AiTherapy.service.payment.EntitlementService;
+import com.hkv.AiTherapy.service.job.ExtractionJobQueue;
 import com.hkv.AiTherapy.service.ai.AIGateway;
 import com.hkv.AiTherapy.service.ai.PromptBuilder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -39,7 +42,8 @@ public class ChatService {
     private final AIGateway aiGateway;
     private final PromptBuilder promptBuilder;
     private final ApplicationEventPublisher eventPublisher;
-    private final UserSubscriptionRepository userSubscriptionRepository;
+    private final EntitlementService entitlementService;
+    private final ExtractionJobQueue extractionJobQueue;
 
     public ChatService(ConversationRepository conversationRepository,
                        MessageRepository messageRepository,
@@ -48,7 +52,8 @@ public class ChatService {
                        AIGateway aiGateway,
                        PromptBuilder promptBuilder,
                        ApplicationEventPublisher eventPublisher,
-                       UserSubscriptionRepository userSubscriptionRepository) {
+                       EntitlementService entitlementService,
+                       ExtractionJobQueue extractionJobQueue) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -56,17 +61,38 @@ public class ChatService {
         this.aiGateway = aiGateway;
         this.promptBuilder = promptBuilder;
         this.eventPublisher = eventPublisher;
-        this.userSubscriptionRepository = userSubscriptionRepository;
+        this.entitlementService = entitlementService;
+        this.extractionJobQueue = extractionJobQueue;
+    }
+
+    /** Resume an existing conversation without generating a greeting or consuming chat quota. */
+    @Transactional(readOnly = true)
+    public ConversationResponse activeSession(UUID userId) {
+        userRepository.findById(userId).filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        return conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active")
+                .map(conversation -> {
+                    List<Message> recent = new ArrayList<>(messageRepository
+                            .findByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId(), PageRequest.of(0, 50)));
+                    Collections.reverse(recent);
+                    return ConversationResponse.builder()
+                            .id(conversation.getId().toString()).status(conversation.getStatus())
+                            .startedAt(conversation.getStartedAt()).tokenCount(conversation.getTokenCount())
+                            .recentMessages(recent.stream().map(this::mapToDto).toList()).build();
+                }).orElse(null);
     }
 
     @Transactional
     public ConversationResponse startSession(UUID userId) {
+        userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
         // 1. Check for an existing active session to use as context
         java.util.Optional<Conversation> activeSessionOpt = conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active");
         
         String previousTranscript = "";
         
-        if (activeSessionOpt.isPresent()) {
+        if (activeSessionOpt.isPresent() && activeSessionOpt.get().isContextEligible()) {
             Conversation oldSession = activeSessionOpt.get();
             // Fetch recent messages to summarize what happened immediately before reload
             List<Message> history = messageRepository.findByConversationId(oldSession.getId(), PageRequest.of(0, 6, Sort.by("createdAt").descending()));
@@ -145,11 +171,11 @@ public class ChatService {
                 .orElseThrow(() -> new RuntimeException("Conversation not found"));
                 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
         
-        if (!"active".equals(conversation.getStatus())) {
-            throw new RuntimeException("Cannot send message to a non-active conversation");
+        if (!"active".equals(conversation.getStatus()) || !conversation.isContextEligible()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conversation is no longer active");
         }
 
         // 1. Save user's message
@@ -204,11 +230,11 @@ public class ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not authorized to access this conversation");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
 
-        if ("completed".equals(conversation.getStatus())) {
-            throw new IllegalStateException("Cannot send message to a completed conversation");
+        if (!"active".equals(conversation.getStatus()) || !conversation.isContextEligible()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Conversation is no longer active");
         }
 
         // 1. Save user's message
@@ -274,16 +300,23 @@ public class ChatService {
 
     @Transactional
     public void endSession(UUID userId, UUID conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
+        User user = userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
         if (!conversation.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not authorized to access this conversation");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
         }
+
+        if (!"active".equals(conversation.getStatus())) return;
 
         conversation.setStatus("completed");
         conversation.setEndedAt(Instant.now());
         conversationRepository.save(conversation);
+        if (conversation.isContextEligible())
+            extractionJobQueue.enqueue(userId, conversationId, user.getContextRevision());
 
         java.util.Optional<TherapyProfile> profileOpt = therapyProfileRepository.findByUserId(userId);
         if (profileOpt.isPresent()) {
@@ -292,17 +325,34 @@ public class ChatService {
             therapyProfileRepository.save(profile);
         }
 
-        // Instantly trigger the background summarization job
-        eventPublisher.publishEvent(new com.hkv.AiTherapy.service.job.SessionEndedEvent(conversationId));
+        // This event only cancels any in-flight chat provider work after the transaction commits.
+        eventPublisher.publishEvent(new ConversationEndedEvent(userId, conversationId));
+    }
+
+    /** Queues a stable snapshot without completing or replacing the active conversation. */
+    @Transactional
+    public UUID requestProfileRefresh(UUID userId, UUID conversationId) {
+        User user = userRepository.findByIdForUpdate(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found"));
+        if (!conversation.getUser().getId().equals(userId) || !"active".equals(conversation.getStatus())
+                || !conversation.isContextEligible())
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active conversation not found");
+        if (messageRepository.findFirstByConversationIdAndRoleOrderByCreatedAtDescIdDesc(conversationId, "user").isEmpty())
+            return null;
+        return messageRepository.findFirstByConversationIdOrderByCreatedAtDescIdDesc(conversationId)
+                .map(message -> extractionJobQueue.enqueueRefresh(userId, conversationId,
+                        user.getContextRevision(), message.getId()))
+                .orElse(null);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /** Returns true if the user has an active PRO subscription. */
     private boolean isProUser(UUID userId) {
-        return userSubscriptionRepository.findByUserId(userId)
-                .map(sub -> sub.isPro())
-                .orElse(false);
+        return entitlementService.isPro(userId);
     }
 
     private ChatMessageResponse mapToDto(Message message) {

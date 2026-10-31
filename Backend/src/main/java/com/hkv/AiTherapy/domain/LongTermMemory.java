@@ -64,6 +64,42 @@ public class LongTermMemory {
     @Builder.Default
     private boolean isResolved = false;
 
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private String status = "pending";
+
+    @Column(name = "source_kind", nullable = false, length = 30)
+    @Builder.Default
+    private String sourceKind = "ai_inferred";
+
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_message_id")
+    private Message sourceMessage;
+
+    @Column(name = "source_job_id")
+    private UUID sourceJobId;
+
+    @Column(name = "source_output_id", unique = true)
+    private UUID sourceOutputId;
+
+    @Column(name = "source_revision", nullable = false)
+    @Builder.Default
+    private long sourceRevision = 0;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supersedes_id")
+    private LongTermMemory supersedes;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -7,7 +7,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-2 rounded-full glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-primary transition-all active:scale-95"
+      className="min-w-11 min-h-11 flex items-center justify-center rounded-full glass-morphism border border-outline-variant/10 text-on-surface-variant hover:text-primary transition-all active:scale-95"
       title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
     >
       <span className="material-symbols-outlined text-[20px]">

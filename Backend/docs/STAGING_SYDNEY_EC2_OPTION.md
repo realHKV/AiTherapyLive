@@ -1,0 +1,86 @@
+# Sydney staging: one EC2 instance, no load balancer — 2026-10-27
+
+Status: **public trusted HTTPS staging backend and Netlify Deploy Preview running; Google sign-in works, remaining browser acceptance pending**. Account `492613852824`, Region `ap-southeast-2`, Netlify frontend. Synthetic staging data only.
+
+## First deployment: private development access
+
+The first [EC2 stack](../infra/ec2-demo-instance.yaml) has no inbound security-group rules, no Elastic IP, and no load balancer. It uses a public subnet only for outbound package, database, Redis, and AWS API access; the automatically assigned public IPv4 changes after a stop. Administration and local API testing use Systems Manager Session Manager or port forwarding. This follows the request to defer HTTPS and avoids exposing an HTTP API to browsers. The live Netlify site cannot call this private staging host; a trusted HTTPS ingress and a workable Google callback are required before frontend integration.
+
+At the verified Sydney rates, 17 hours/day of `t3.small` compute, 16 GiB gp3, and a public IPv4 only while running give an illustrative **$17.77/month gross** before credits and usage. The AWS Console showed $140 credits remaining on 2026-10-27, and the existing budget alerts at $15/month. The user explicitly approved this narrower scope after automatic approval review rejected a former unexecuted change set with public HTTPS ingress and an Elastic IP. That change set was deleted before the SSM-only plan was deployed.
+
+On 2026-10-27, stack `aitherapy-demo-sydney-ec2` reached `CREATE_COMPLETE` with instance `i-02bfd15040e191b6e` and security group `sg-0f36112980576cd45`. The instance was running, SSM reported `Online`, and the security group had **zero ingress rules**. Its 16 GiB gp3 root volume `vol-09ec805346d469dfc` was encrypted, IMDSv2 was required, the metadata hop limit was two, and T3 credits were `standard`. The assigned public IP is temporary and must not be used as a stable API endpoint. Stack `aitherapy-demo-sydney-schedule` reached `CREATE_COMPLETE`; enabled rules target only this instance at `cron(0 0 * * ? *)` and `cron(0 7 * * ? *)` in `Asia/Kolkata`. Docker bootstrap passed (`active`, version 25.0.14). Observe the first actual stop and start; schedule creation alone does not prove execution. The account has no durable CloudTrail trail, so management activity currently has only Event History retention.
+
+The host cloned exact commit `7ebd43ae58e9e5c4456cb7374eb33f9c6d6d82cb` and built local image `aitherapy:dev-7ebd43a` (`sha256:052d59e34662993661db32f5f217c6ab8dfcfc24ed527d2cae4f49e613042da5`, Docker image ID, **not** a registry digest). The image runs as UID 10001. Its initial synthetic smoke test passed: disposable PostgreSQL and Redis containers, nine Flyway migrations, second migration run, readiness, graceful shutdown, and container cleanup. One synthetic Bedrock Converse call from the instance role to `global.amazon.nova-2-lite-v1:0` returned `ready` with 53 input and 4 output tokens. That initial smoke did not touch Neon or upload local `.env`.
+
+On 2026-10-27, a verified-TLS read-only audit found the original Neon database had 10 tables, zero application rows, and zero Flyway history. With the user's approval, a **separate** `aitherapy_staging` database was created in the same Neon project and all nine Flyway migrations applied there. The original schema was left untouched. After the user explicitly authorized transferring the local development credentials, one standard SecureString parameter `/aitherapy/demo/runtime-env` was stored in Sydney. It contains the staging JDBC URL with `sslmode=verify-full`, the existing Redis, JWT, encryption, Google OAuth and Razorpay **test-mode** settings, and private runtime flags. Its webhook secret is a random private placeholder until an HTTPS webhook URL is configured. The EC2 role can read only the project parameter path; [the private startup script](../deploy/private-ec2-start.sh) retrieves it into a root-only `0600` file on the encrypted disk and starts the backend with Docker restart policy `unless-stopped`, bounded logs and memory, and `SERVER_ADDRESS=127.0.0.1`. The production profile reached readiness `UP` with database and Redis health on the host. The application is listening on loopback, and its security group still has zero ingress rules. No Netlify setting or live traffic was changed.
+
+The protected backend release workflow subsequently passed for commit `a3059114be72251b19765ffd3e66d660f85bbc6d` and published [a Docker Hub digest](releases/STEP-16-private-image.json). A protected GitHub export job pulled that exact private digest, packaged a two-day image archive, and kept the existing Docker Hub push token in GitHub. The EC2 host downloaded the archive through a short-lived URL sent by SSM, checked its SHA-256 archive checksum, and loaded immutable local image ID `sha256:f9f32b3b275988fccebf841da989fcad57282ec13064e0dd75f1d3d7406b9e0a`. The rollback-aware script started it and independent SSM checks confirmed readiness `UP` and runtime file mode `0600`. No new Docker Hub token was created or transferred to AWS. [The Step 16 record](handoffs/STEP-16.md) has the workflow and command evidence.
+
+The private startup script now restores the prior image and runtime settings if a candidate does not reach readiness. A deliberately invalid candidate revealed and fixed a Docker restart-loop detection gap. On the repeated rehearsal, the candidate failed, the previous image returned to readiness `UP`, and the root-only runtime file remained `0600`. This proves container-level rollback for this synthetic failure; it does not reverse database migrations or replace a Neon restore drill.
+
+## Why EC2
+
+The existing Java container is x86_64 and needs a warm process plus background jobs. A `t3.small` has 2 vCPUs and 2 GiB RAM and is eligible for the post-2025 AWS Free account plan. That plan uses promotional credits for EC2 usage; “Free tier eligible” does **not** mean indefinite zero-cost compute. The account showed $140 credit remaining on 2026-10-27; recheck the balance before deployment.
+
+One public-subnet EC2 instance can run the backend with an IAM instance profile for Bedrock and access to the existing Neon database and Upstash Redis. Use a free-tier-eligible AMI, 16 GiB gp3 EBS, T3 CPU credit mode `standard`, and AWS Systems Manager Session Manager for administration. Add an Elastic IP only with the later HTTPS ingress phase. Do not expose SSH. Keep secrets in scoped AWS Secrets Manager references or standard SSM SecureString parameters; choose the latter for this small demo where automatic rotation is not needed, and verify IAM read access. Do not put values in user data, Git, or Terraform state. Run the one-off Flyway migrator first, then set `SPRING_FLYWAY_ENABLED=false` for the server.
+
+## HTTPS and OAuth
+
+The optional [CloudFormation parameter](../infra/ec2-demo-instance.yaml) `EnablePublicHttps` defaults to `false`. With explicit user approval, change set `aitherapy-public-https-review-20261027` was executed on 2026-10-28 without EC2 replacement. It assigned Elastic IP `3.24.37.218` and opened inbound ports 80/443. [The IP HTTPS setup script](../deploy/configure-ip-https.sh) installed nginx, a trusted Let's Encrypt IP certificate, daily renewal, and a loopback reverse proxy. The certificate expires 2026-11-03 06:08:19 GMT; a Certbot renewal dry run passed. Public liveness and readiness returned `UP`, exact Netlify CORS preflight was allowed, an unexpected origin was denied, HTTP redirected to HTTPS, and public port 8080 timed out. The expected incremental idle IPv4 cost is about $1.07/month for the seven stopped hours per day; the prior dynamic public IPv4 was already billed while the instance ran. The estimated scheduled gross baseline is about $18.84/month before credits, Bedrock, or traffic. Port 80 serves ACME challenges and redirects all other requests to HTTPS; port 8080 and SSH remain closed.
+
+Netlify provides HTTPS for the frontend only. The browser must call a trusted HTTPS API. A raw EC2 IP can obtain a publicly trusted, short-lived IP certificate from Let's Encrypt with Certbot 5.4+ and automated renewal. Use an HTTPS reverse proxy on EC2 to forward to Java port 8080. The certificate expires after roughly six days, so renewal monitoring is mandatory. Do not assume a certificate can be issued for the AWS-assigned EC2 public DNS name.
+
+Google disallows a raw IP as a web OAuth redirect host. Therefore `https://<Elastic-IP>/api/v1/login/oauth2/code/google` cannot be the Google callback. The frontend now supports a separate `VITE_OAUTH_BASE_URL`, and its Netlify build can generate narrow HTTPS proxy rules for OAuth start and callback paths when `NETLIFY_API_ORIGIN` is set. The redirect URI uses the assigned Netlify site domain. Chat and other API calls go directly to the EC2 IP HTTPS endpoint. Netlify's proxy has a 26-second timeout and cannot carry the app's 90-second chat stream. Verify cookies, Spring's generated redirect URI, callback latency, and Google's acceptance of the Netlify hostname before relying on this split route. If it fails, use a controlled DNS subdomain for direct EC2 HTTPS or revisit managed HTTPS ingress. Do not use HTTP or an untrusted certificate for OAuth or user data.
+
+The production frontend is `https://trust-therapy-ai.netlify.app` and continues to use Render until staging acceptance passes. The PR #1 Deploy Preview is `https://deploy-preview-1--trust-therapy-ai.netlify.app`. Its Netlify context has `VITE_API_BASE_URL=https://3.24.37.218/api/v1`, `VITE_OAUTH_BASE_URL=https://deploy-preview-1--trust-therapy-ai.netlify.app/api/v1`, `NETLIFY_API_ORIGIN=https://3.24.37.218`, and `VITE_DEMO_SCHEDULE_ENABLED=true`; production retains the Render API URL. Encrypted SSM parameter version 3 sets backend CORS to include the preview origin first and sets `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI=https://deploy-preview-1--trust-therapy-ai.netlify.app/api/v1/login/oauth2/code/google`. The matching URI is saved in the Google OAuth client. A browser Google sign-in reached onboarding and cleared the one-time ticket from the URL; no profile or therapy content was entered. Keep Razorpay in test mode. Use only synthetic Bedrock prompts until the data-location decision is made.
+
+## Daily demo window
+
+The requested window is **07:00–00:00 Asia/Kolkata every day**. [The schedule template](../infra/ec2-demo-schedule.json) prepares two EventBridge Scheduler rules: stop the one EBS-backed EC2 instance at 00:00 and start it at 07:00. It accepts the instance ID after EC2 is created, uses an IAM role scoped to that instance, and has no Lambda. Deploy it in `ap-southeast-2` only when the instance exists. Check the first stop and first start in EC2; a scheduled API request does not itself prove the instance reached the desired state. Startup and application readiness may take several minutes after 07:00. The Netlify page remains online overnight, but login, chat, and other backend actions will be unavailable. Resume the instance manually for interviews outside this window.
+
+There is no single switch that pauses every AWS service. Bedrock on-demand has no idle model charge; calls during the active window incur token charges, including background extraction or summaries. The EBS disk and reserved public IPv4 keep their charges while EC2 is stopped. Secrets Manager, logs, snapshots, and data transfer can also incur usage charges. An AWS Budget is an alert, not a hard spending cap.
+
+## Later public HTTPS phase: gross cost, before credits and usage
+
+For 730 hours in Sydney, with an **illustrative** `t3.small` rate of $0.0264/hour, 16 GiB gp3 at $0.096/GiB-month, and one public IPv4 at $0.005/hour:
+
+| Component | Approximate USD/month |
+| --- | ---: |
+| EC2 `t3.small`, 24/7 | $19.27 |
+| 16 GiB gp3 disk | $1.54 |
+| One public IPv4 | $3.65 |
+| **24/7 baseline before credits** | **$24.46** |
+| EC2 `t3.small`, scheduled 17/24 hours | $13.65 |
+| **Scheduled baseline before credits** | **$18.84** |
+
+The scheduled estimate uses a representative 730-hour month × 17/24 running hours, saving about $5.62/month in compute. The two daily EventBridge Scheduler invocations are far below its monthly free allowance. No ALB, Fargate, or CloudFront is required. The $15 monthly budget is an alert and could trigger on gross usage. Promotional credit may cover eligible charges while available. EBS snapshots, CloudWatch logs, data transfer, and Bedrock tokens add usage cost. Secrets Manager is about $0.40 per secret per month: 13 separate secrets would add about $5.20/month, making this scheduled baseline about $24.04 before other usage. Standard SSM SecureString parameters avoid that per-secret storage fee, subject to their limits and possible KMS charges. Validate the account-specific EC2 rate and credit balance before deployment.
+
+## Bedrock usage for a quiet resume demo
+
+The proposed `global.amazon.nova-2-lite-v1:0` text route is estimated at **$0.30 per million input tokens and $2.50 per million output tokens** at standard on-demand rates. A 2,000-input/500-output-token chat costs about **$0.00185**; 100 such chats cost **$0.19**, and 1,000 cost **$1.85**. A larger 6,000-input/1,500-output-token chat costs about **$0.00555**. Prompt history, memory extraction, summaries, and any other model calls add tokens. These are usage examples, not a bill forecast or a hard limit; verify the live Bedrock pricing and actual model route at deployment.
+
+For staging, set `AI_USAGE_ACCOUNT_DAILY_REQUESTS=50`, `AI_USAGE_ACCOUNT_DAILY_TOKENS=100000`, `AI_USAGE_MODEL_DAILY_REQUESTS=50`, and `AI_USAGE_MODEL_DAILY_TOKENS=100000` as conservative application guardrails. They limit the app's accounted traffic; they do not cap AWS charges from other callers or guarantee a maximum dollar spend. Keep the existing AWS budget alert, inspect Bedrock usage after the first synthetic tests, and set a lower alert threshold if the demo needs tighter cost visibility.
+
+## Gate order
+
+1. Run all PostgreSQL/Redis integration tests without Docker-related skips and produce an immutable x86_64 image digest.
+2. Verify eligibility, remaining credits, Sydney EC2 price, and AMI. Prepare scoped IAM and secrets without values in user data.
+3. After cost acceptance, create EC2; install trusted IP HTTPS and automated renewal; confirm browser trust. Deploy the daily schedule with the actual instance ID and verify its first stop/start.
+4. Run migration on a disposable or backed-up staging database; start the backend with migration disabled; test health, Bedrock with synthetic prompts, streaming, and monitoring.
+5. Prove the narrow Netlify OAuth proxy. Resolve its hostname/callback if it fails. Complete Razorpay test-mode and Step 17–19 acceptance gates before release.
+
+## Sources
+
+- [EC2 Free Tier eligibility and credit model](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html)
+- [AWS Free account plan and credits](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier.html)
+- [Let's Encrypt IP certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
+- [Certbot support for IP certificates](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)
+- [Google OAuth redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server)
+- [Netlify proxy and 26-second limit](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)
+- [AWS public IPv4 pricing](https://aws.amazon.com/vpc/pricing/)
+- [EC2 stop/start billing and persistence](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/how-ec2-instance-stop-start-works.html)
+- [EventBridge Scheduler time zones](https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html)
+- [EventBridge Scheduler pricing](https://aws.amazon.com/eventbridge/pricing/)
+- [AWS Nova 2 Lite token-rate example](https://aws.amazon.com/blogs/machine-learning/pair-nova-2-lite-with-claude-for-cost-optimized-document-processing/)
+- [Secrets Manager pricing](https://aws.amazon.com/secrets-manager/pricing/)
+- [Parameter Store pricing](https://aws.amazon.com/systems-manager/pricing/)
