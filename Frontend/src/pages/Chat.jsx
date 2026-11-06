@@ -9,6 +9,7 @@ import UserProfilePanel from './UserProfilePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ThemeToggle from '../components/ThemeToggle';
+import { canResumeSessionToday } from './sessionDay';
 import './Chat.css';
 
 export default function Chat() {
@@ -97,7 +98,10 @@ export default function Chat() {
         if (profileRes) setProfile(profileRes);
         const activeSession = await chatAPI.getActiveSession();
         if (cancelled) return;
-        const sessionRes = activeSession?.id ? activeSession : await chatAPI.createSession();
+        const resumable = activeSession?.id && canResumeSessionToday(activeSession.startedAt);
+        if (activeSession?.id && !resumable) await chatAPI.endSession(activeSession.id);
+        if (cancelled) return;
+        const sessionRes = resumable ? activeSession : await chatAPI.createSession();
         if (cancelled) return;
         if (sessionRes && sessionRes.id) {
           setSessionId(sessionRes.id);
