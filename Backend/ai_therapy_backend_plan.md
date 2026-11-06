@@ -1,3 +1,5 @@
+> **Historical design only — superseded.** Do not use this file as implementation instructions. Start with [Backend README](README.md) and [DEVELOPMENT_PLAN](docs/DEVELOPMENT_PLAN.md). The current direction is Bedrock-only AI, ECS on Fargate, encrypted PostgreSQL memory with user-controlled lifecycle, and frontend integration last. See [MEMORY_DESIGN](docs/MEMORY_DESIGN.md). Content below is retained for historical context and may conflict with current decisions or implemented code.
+
 # AI Therapy Platform — Backend Architecture Plan
 ## For Claude Code Implementation
 

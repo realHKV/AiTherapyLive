@@ -18,6 +18,12 @@ public class ProfileResponse {
     private String communicationStyle;
     private String aiPersona;
     private List<String> topicsOfConcern;
+    private String personaId;
+    private boolean onboardingComplete;
+    private String gender;
+    private String country;
+    private List<String> interests;
+    private String additionalNote;
     private int totalSessions;
     private List<TraitDto> traits;
 
@@ -26,6 +32,7 @@ public class ProfileResponse {
     @NoArgsConstructor
     public static class TraitDto {
         private String key;
+        private String value;
         private double confidence;
         private String source;
     }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { googleSignInUrl } from '../api/auth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,7 @@ export default function Login() {
     setError(null);
     try {
       await login(email, password);
-      navigate('/chat');
+      navigate('/home');
     } catch (err) {
       setError(err?.response?.data?.error?.message || err.message || 'Login failed');
     }
@@ -48,7 +49,7 @@ export default function Login() {
 
       <div style={{ textAlign: 'center', margin: '20px 0', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
         <button 
-          onClick={() => window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'}/oauth2/authorization/google`}
+          onClick={() => window.location.href = googleSignInUrl()}
           style={{ background: '#db4437', color: 'white' }}
         >
           Sign in with Google

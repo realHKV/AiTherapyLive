@@ -9,6 +9,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
@@ -40,7 +41,12 @@ public class EncryptionService {
                 "ENCRYPTION_MASTER_KEY environment variable is not set. " +
                 "Generate one with: openssl rand -base64 32");
         }
-        byte[] keyBytes = Base64.getDecoder().decode(masterKeyBase64.trim());
+        byte[] keyBytes;
+        try {
+            keyBytes = Base64.getDecoder().decode(masterKeyBase64.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("ENCRYPTION_MASTER_KEY must be valid Base64", e);
+        }
         if (keyBytes.length != 32) {
             throw new IllegalStateException(
                 "ENCRYPTION_MASTER_KEY must be exactly 32 bytes (256 bits) when decoded. " +
@@ -63,7 +69,7 @@ public class EncryptionService {
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(GCM_TAG_BITS, iv));
 
-            byte[] cipherText = cipher.doFinal(plainText.getBytes());
+            byte[] cipherText = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
 
             // Prepend IV to cipherText so we can extract it during decryption
             byte[] combined = new byte[iv.length + cipherText.length];
@@ -95,7 +101,7 @@ public class EncryptionService {
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(GCM_TAG_BITS, iv));
 
-            return new String(cipher.doFinal(cipherText));
+            return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new EncryptionException("Failed to decrypt value", e);
         }

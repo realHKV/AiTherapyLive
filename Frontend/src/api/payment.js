@@ -5,6 +5,8 @@ import apiClient from './client';
 // of apiClient calls directly, NOT response.data (that would be undefined).
 
 export const paymentAPI = {
+  /** Create an order bound to this account before opening checkout. */
+  createPurchase: () => apiClient.post('/payment/purchases'),
   /** GET /payment/status — returns SubscriptionStatusResponse { tier, proExpiresAt, isPro } */
   getStatus: async () => {
     return apiClient.get('/payment/status');

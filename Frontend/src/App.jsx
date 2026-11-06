@@ -1,36 +1,39 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
-import Landing from './pages/Landing';
-import AboutYou from './pages/AboutYou';
-import ChooseTherapist from './pages/ChooseTherapist';
-import Chat from './pages/Chat';
-import OAuth2RedirectHandler from './pages/OAuth2RedirectHandler';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
 import './index.css';
 import { useTheme } from './hooks/useTheme';
+import DemoScheduleBanner from './components/DemoScheduleBanner';
+
+const Landing = lazy(() => import('./pages/Landing'));
+const AboutYou = lazy(() => import('./pages/AboutYou'));
+const ChooseTherapist = lazy(() => import('./pages/ChooseTherapist'));
+const Home = lazy(() => import('./pages/Home'));
+const Memories = lazy(() => import('./pages/Memories'));
+const Chat = lazy(() => import('./pages/Chat'));
+const OAuth2RedirectHandler = lazy(() => import('./pages/OAuth2RedirectHandler'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+
+const RouteLoading = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="w-12 h-12 rounded-full border-4 border-outline-variant/30 border-t-primary animate-spin-slow" />
+  </div>
+);
 
 // Requires authentication — redirects to landing if not logged in
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-12 h-12 rounded-full border-4 border-outline-variant/30 border-t-primary animate-spin-slow" />
-    </div>
-  );
+  if (loading) return <RouteLoading />;
   return isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
 // Redirects authenticated users from public pages to the app
 const AuthRedirectRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-12 h-12 rounded-full border-4 border-outline-variant/30 border-t-primary animate-spin-slow" />
-    </div>
-  );
-  return isAuthenticated ? <Navigate to="/chat" replace /> : children;
+  if (loading) return <RouteLoading />;
+  return isAuthenticated ? <Navigate to="/home" replace /> : children;
 };
 
 function App() {
@@ -40,6 +43,8 @@ function App() {
   return (
     <SubscriptionProvider>
       <BrowserRouter>
+        <DemoScheduleBanner />
+        <Suspense fallback={<RouteLoading />}>
         <Routes>
           {/* Public */}
           <Route path="/" element={<AuthRedirectRoute><Landing /></AuthRedirectRoute>} />
@@ -53,11 +58,14 @@ function App() {
           <Route path="/choose-therapist" element={<ProtectedRoute><ChooseTherapist /></ProtectedRoute>} />
 
           {/* App (protected) */}
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/memories" element={<ProtectedRoute><Memories /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </SubscriptionProvider>
   );

@@ -58,4 +58,11 @@ public class Conversation {
     /** Set once the async summarization scheduler has finished */
     @Column(name = "summarized_at")
     private Instant summarizedAt;
+
+    @Column(name = "context_eligible", nullable = false)
+    @Builder.Default
+    private boolean contextEligible = true;
+
+    @Column(name = "summary_revision")
+    private Long summaryRevision;
 }

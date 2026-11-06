@@ -1,6 +1,7 @@
 package com.hkv.AiTherapy.domain;
 
 import com.hkv.AiTherapy.encryption.EncryptedStringConverter;
+import com.hkv.AiTherapy.encryption.LegacyJsonArrayConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -51,6 +52,27 @@ public class TherapyProfile {
     @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "topics_of_concern", columnDefinition = "TEXT")
     private String topicsOfConcern;
+
+    @Column(name = "gender", length = 30)
+    private String gender;
+
+    @Column(name = "country", length = 100)
+    private String country;
+
+    @Convert(converter = LegacyJsonArrayConverter.class)
+    @Column(name = "enjoyments", columnDefinition = "TEXT")
+    private String enjoyments;
+
+    @Column(name = "selected_therapist", length = 50)
+    private String selectedTherapist;
+
+    @Column(name = "onboarding_complete", nullable = false)
+    @Builder.Default
+    private boolean onboardingComplete = false;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "additional_note", columnDefinition = "TEXT")
+    private String additionalNote;
 
     @Column(name = "total_sessions", nullable = false)
     @Builder.Default

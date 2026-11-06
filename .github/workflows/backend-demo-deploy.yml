@@ -1,0 +1,60 @@
+name: Backend demo deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Bootstrap ECR and migration, or deploy an existing service
+        required: true
+        type: choice
+        options: [bootstrap, deploy]
+      release_manifest:
+        description: Committed backend release manifest path
+        required: true
+        default: Backend/docs/releases/STEP-14-image.json
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: backend-demo-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.repository == 'realHKV/AiTherapyLive' &&
+      (github.ref == 'refs/heads/codex/backend-baseline' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: backend-demo
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Configure scoped AWS deployment role
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        with:
+          aws-region: ap-south-1
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: backend-demo-${{ github.run_id }}
+      - name: Mirror, migrate, and deploy the tested digest
+        id: release
+        env:
+          DEPLOY_MODE: ${{ inputs.mode }}
+          AWS_REGION: ap-south-1
+          RELEASE_MANIFEST: ${{ inputs.release_manifest }}
+          ECR_REPOSITORY_URL: ${{ vars.AWS_ECR_REPOSITORY_URL }}
+          APP_RUNNER_SERVICE_ARN: ${{ vars.AWS_APPRUNNER_SERVICE_ARN }}
+          DATABASE_URL_ARN: ${{ vars.DATABASE_URL_ARN }}
+          MIGRATION_DATABASE_USER_ARN: ${{ vars.MIGRATION_DATABASE_USER_ARN }}
+          MIGRATION_DATABASE_PASSWORD_ARN: ${{ vars.MIGRATION_DATABASE_PASSWORD_ARN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash Backend/deploy/demo-release.sh
+      - name: Record ECR digest
+        env:
+          ECR_DIGEST: ${{ steps.release.outputs.ecr_digest }}
+        run: |
+          printf 'ECR digest: `%s`\n' "$ECR_DIGEST" >> "$GITHUB_STEP_SUMMARY"

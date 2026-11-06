@@ -15,7 +15,7 @@ export default function Register() {
     setError(null);
     try {
       await register(email, password, displayName);
-      navigate('/chat');
+      navigate('/home');
     } catch (err) {
       setError(err?.response?.data?.error?.message || err.message || 'Registration failed');
     }

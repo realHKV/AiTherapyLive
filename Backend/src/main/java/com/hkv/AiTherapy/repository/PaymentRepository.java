@@ -5,10 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
+import java.util.Optional;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     /** Idempotency guard — prevent double-upgrading from repeated webhooks. */
-    boolean existsByRazorpayPaymentId(String razorpayPaymentId);
+    Optional<Payment> findByRazorpayPaymentId(String razorpayPaymentId);
 }

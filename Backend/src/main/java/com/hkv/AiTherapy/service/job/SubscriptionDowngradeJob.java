@@ -15,17 +15,19 @@ public class SubscriptionDowngradeJob {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionDowngradeJob.class);
 
     private final SubscriptionService subscriptionService;
+    private final ScheduledTaskCoordinator coordinator;
 
-    public SubscriptionDowngradeJob(SubscriptionService subscriptionService) {
+    public SubscriptionDowngradeJob(SubscriptionService subscriptionService, ScheduledTaskCoordinator coordinator) {
         this.subscriptionService = subscriptionService;
+        this.coordinator = coordinator;
     }
 
     /** Run once every 24 hours (at midnight). */
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 0 0 * * *", zone = "UTC")
     public void downgradeExpiredSubscriptions() {
-        int count = subscriptionService.downgradeExpiredUsers();
-        if (count > 0) {
-            log.info("Downgraded {} expired PRO subscription(s) to FREE.", count);
-        }
+        coordinator.runIfOwner("subscription-downgrade", () -> {
+            int count = subscriptionService.downgradeExpiredUsers();
+            if (count > 0) log.info("Downgraded {} expired PRO subscription(s) to FREE.", count);
+        });
     }
 }

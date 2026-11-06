@@ -1,18 +1,54 @@
 import axios from 'axios';
 
+export const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8080/api/v1')
+  .replace(/\/+$/, '');
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+let refreshPromise = null;
+
+export function expireSession() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  window.dispatchEvent(new Event('auth:expired'));
+}
+
+export function refreshSession() {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) return Promise.reject(new Error('Your session has expired. Please sign in again.'));
+  if (!refreshPromise) {
+    refreshPromise = apiClient.post('/auth/refresh', { refreshToken }, { skipAuthRefresh: true })
+      .then(data => {
+        if (!data?.accessToken || !data?.refreshToken) throw new Error('Invalid session refresh response.');
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        return data.accessToken;
+      })
+      .catch(error => {
+        if (error.response?.status === 401) {
+          expireSession();
+        }
+        throw error;
+      })
+      .finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
 // Request interceptor to add the standard Auth string (if any)
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
-    // console.log('Outgoing request:', config.url, 'Token:', token ? 'present' : 'MISSING');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    const publicAuth = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/oauth/exchange']
+      .includes(config.url);
+    if (publicAuth) delete config.headers.Authorization;
+    else if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
   (error) => Promise.reject(error)
@@ -21,21 +57,29 @@ apiClient.interceptors.request.use(
 // Response interceptor to handle token expiry / unauthenticated scenarios
 apiClient.interceptors.response.use(
   (response) => {
-    // console.log('Incoming response');
     const resData = response.data;
-    // console.log('Response data:', resData);
     if (resData && resData.success === true) {
-      // console.log('Unwrapped response data:', resData.data); // move this BEFORE return
       return resData.data;
     }
     return resData;
   },
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      console.error('Unauthorized:', error);
-      localStorage.removeItem('accessToken');
+  async (error) => {
+    const config = error.config;
+    if (error.response?.status !== 401 || !config || config.skipAuthRefresh
+        || config.url?.startsWith('/auth/') || config.retriedAfterRefresh) {
+      throw error;
     }
-    return Promise.reject(error);
+    if (!localStorage.getItem('refreshToken')) {
+      expireSession();
+      throw error;
+    }
+    const token = await refreshSession();
+    if (['get', 'head'].includes(config.method?.toLowerCase())) {
+      config.retriedAfterRefresh = true;
+      config.headers.Authorization = `Bearer ${token}`;
+      return apiClient(config);
+    }
+    throw new Error('Your session was refreshed. Please submit that action again.');
   }
 );
 
