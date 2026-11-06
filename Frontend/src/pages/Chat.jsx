@@ -9,6 +9,7 @@ import UserProfilePanel from './UserProfilePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ThemeToggle from '../components/ThemeToggle';
+import './Chat.css';
 
 export default function Chat() {
   const { logout, user } = useAuth();
@@ -72,13 +73,13 @@ export default function Chat() {
     });
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Position a newly opened session once. Streaming replies must leave the reader's
+  // scroll position alone so the beginning of a long answer stays in view.
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!sessionId) return;
+    const frame = requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }));
+    return () => cancelAnimationFrame(frame);
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +215,7 @@ export default function Chat() {
     activeStreamRef.current = controller;
     setChatError('');
     setMessages(prev => [...prev, userMsg]);
+    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }));
     setInput('');
     setIsTyping(true);
     setResponsePhase('thinking');
@@ -239,10 +241,12 @@ export default function Chat() {
           });
         } else if (name === 'complete') {
           completed = true;
+          setResponsePhase('complete');
           setMessages(prev => prev.map(message => message.id === streamMessageId
             ? { ...message, id: data.assistantMessageId, isStreaming: false } : message));
         } else if (name === 'error') {
           terminalError = data.message || 'The AI service could not complete this request.';
+          setResponsePhase('complete');
           setMessages(prev => prev.filter(message => message.id !== streamMessageId));
         }
       });
@@ -317,7 +321,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-var(--demo-banner-height,0px))] bg-background text-on-surface relative overflow-hidden">
+    <div className="chat-screen flex flex-col h-[calc(100dvh-var(--demo-banner-height,0px))] bg-background text-on-surface relative overflow-hidden">
       {enable3DBackground ? (
           <div className="absolute inset-0 z-0 bg-surface">
             {/* Desktop: Animated 3D Galaxy */}
@@ -345,11 +349,11 @@ export default function Chat() {
       )}
 
       {/* ── Nav ── */}
-      <header className="glass-morphism-nav border-b border-outline-variant/10 z-50 relative">
-        <div className="flex justify-between items-center px-4 md:px-8 py-3 md:py-4 max-w-7xl mx-auto">
+      <header className="chat-header glass-morphism-nav border-b border-outline-variant/10 z-50 relative">
+        <div className="flex justify-between items-center px-4 md:px-8 py-2.5 md:py-4 max-w-7xl mx-auto gap-2">
           {/* Logo + session info */}
-          <div className="flex items-center gap-4 min-w-0">
-            <button type="button" onClick={() => navigate('/home')} className="min-h-11 text-lg sm:text-xl font-bold tracking-tight text-primary font-headline truncate" title="Back to your overview">TrustTherapy.ai</button>
+          <div className="flex items-center gap-4 min-w-0 flex-1 md:flex-none">
+            <button type="button" onClick={() => navigate('/home')} className="chat-brand min-h-11 text-lg sm:text-xl font-bold tracking-tight text-primary font-headline truncate" title="Back to your overview">TrustTherapy.ai</button>
             <div className="hidden md:flex items-center gap-2 glass-morphism rounded-full px-4 py-1.5 border border-outline-variant/10">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-on-surface-variant tracking-wide font-medium">Session Active</span>
@@ -357,7 +361,7 @@ export default function Chat() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="chat-header-controls flex items-center gap-2 md:gap-3 shrink-0">
             {/* User name */}
             <span className="hidden md:block text-sm text-on-surface-variant">
               {user?.displayName || user?.email}
@@ -404,6 +408,8 @@ export default function Chat() {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Chat menu"
+              aria-expanded={isMobileMenuOpen}
               className="md:hidden min-w-11 min-h-11 flex items-center justify-center -mr-2 text-on-surface-variant hover:text-on-surface transition-colors"
             >
               <span className="material-symbols-outlined">menu</span>
@@ -418,10 +424,14 @@ export default function Chat() {
             </button>
           </div>
         </div>
+        <div className="chat-mobile-status md:hidden px-4 pb-2 flex items-center gap-2 text-xs text-on-surface-variant">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+          {sessionId ? 'Today’s session' : 'Your private space'}
+        </div>
 
         {/* Mobile Dropdown */}
         {isMobileMenuOpen && (
-          <div className="absolute top-full left-0 w-full bg-surface shadow-xl border-b border-outline-variant/10 md:hidden flex flex-col p-6 gap-3 z-[60] animate-fade-slide">
+          <div className="chat-mobile-menu absolute top-full left-0 w-full bg-surface shadow-xl border-b border-outline-variant/10 md:hidden flex flex-col p-4 gap-2 z-[60] animate-fade-slide">
             <span className="text-[10px] uppercase font-bold text-on-surface-variant mb-1 tracking-widest">Controls</span>
             {sessionId && !isSessionStarting && (
               <>
@@ -481,7 +491,7 @@ export default function Chat() {
               </div>
             )}
             {/* ── Messages Area ── */}
-            {sessionId && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-6 md:space-y-8 px-4 md:px-12 lg:px-24 py-5 md:py-8 pb-4">
+            {sessionId && <div className="chat-messages flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-5 md:space-y-8 px-3 sm:px-5 md:px-12 lg:px-24 py-4 md:py-8 pb-4">
               {/* Date divider */}
               <div className="flex justify-center">
                 <span className="text-[10px] font-bold text-on-surface-variant/40 tracking-[0.2em] uppercase">
@@ -499,7 +509,7 @@ export default function Chat() {
               {messages.map((msg, idx) => (
                 <div
                   key={msg.id || idx}
-                  className={`flex flex-col max-w-[85%] md:max-w-[70%] ${
+                  className={`chat-message flex flex-col max-w-[92%] sm:max-w-[85%] md:max-w-[70%] ${
                     msg.senderRole === 'USER' ? 'items-end self-end ml-auto' : 'items-start self-start mr-auto'
                   }`}
                 >
@@ -533,11 +543,11 @@ export default function Chat() {
               ))}
 
               {/* Response progress */}
-              {isTyping && (
+              {isTyping && responsePhase === 'thinking' && (
                 <div className="flex justify-start">
                   <div role="status" aria-live="polite" className="inline-flex w-fit max-w-[85%] items-center gap-2 rounded-xl glass-morphism border border-outline-variant/10 px-4 py-3 text-sm text-on-surface-variant">
                     <span className="h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" aria-hidden="true" />
-                    AI Guide is {responsePhase === 'thinking' ? 'thinking about your message' : 'responding'}
+                    AI Guide is thinking about your message
                   </div>
                 </div>
               )}
@@ -546,27 +556,33 @@ export default function Chat() {
             </div>}
 
             {/* ── Input Bar ── */}
-            {sessionId && <div className="px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:p-6 lg:p-8 pointer-events-none relative z-20">
+            {sessionId && <div className="chat-composer px-3 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] md:p-6 lg:p-8 pointer-events-none relative z-20">
               {chatError && <p role="alert" className="max-w-4xl mx-auto mb-3 text-sm text-error pointer-events-auto">{chatError}</p>}
               {profileUpdateNotice && <p role="status" className="max-w-4xl mx-auto mb-3 text-sm text-primary pointer-events-auto">{profileUpdateNotice}</p>}
-              {usage && <p className="max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
+              {usage && <p className="chat-usage max-w-4xl mx-auto mb-2 text-xs text-on-surface-variant pointer-events-auto">
                 {usage.tier} · {usage.remainingRequests} daily requests and {usage.remainingTokens.toLocaleString()} tokens remaining
                 {usage.resetAt && !Number.isNaN(Date.parse(usage.resetAt)) && ` · Resets ${new Date(usage.resetAt).toLocaleString()}`}
               </p>}
               <form onSubmit={handleSend} className="max-w-4xl mx-auto pointer-events-auto">
-                <div className="glass-morphism p-1.5 md:p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-2 md:gap-3">
-                  <input
-                    type="text"
+                <div className="chat-input-shell glass-morphism p-1.5 md:p-2 rounded-full border border-outline-variant/20 shadow-glass flex items-center gap-1.5 md:gap-3">
+                  <textarea
+                    rows={1}
+                    maxLength={8000}
                     value={input}
                     onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing
+                          && window.matchMedia('(min-width: 768px)').matches) handleSend(e);
+                    }}
                     placeholder="Share your thoughts..."
+                    aria-label="Your message"
                     disabled={isTyping || isRefreshingProfile || chatBlocked || !sessionId}
-                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/60 px-3 md:px-4 font-medium text-base disabled:cursor-not-allowed"
+                    className="chat-input flex-1 min-w-0 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/60 px-3 md:px-4 font-medium text-base disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isTyping || isRefreshingProfile || chatBlocked || !sessionId}
-                    className="h-11 min-w-11 px-4 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="chat-send h-11 min-w-11 px-4 md:px-7 flex-shrink-0 flex items-center justify-center rounded-full bg-primary text-on-primary font-bold shadow-[0_0_30px_rgba(204,151,255,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     Send
                   </button>

@@ -69,7 +69,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
             <h2 className="text-xl font-bold font-headline text-on-surface flex items-center gap-2">
               Patient Profile
               {isPro && (
-                <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold border border-primary/30">✨ PRO</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold border border-primary/30">✨ PLUS</span>
               )}
             </h2>
             <p className="text-xs text-on-surface-variant/60 mt-0.5">AI-generated insights from your sessions</p>
@@ -209,7 +209,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
             ) : isPro ? (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-primary">✨ Pro Plan</p>
+                  <p className="text-sm font-bold text-primary">✨ Reflection Plus</p>
                   <p className="text-xs text-on-surface-variant/60 mt-0.5">
                     {proExpiresAt
                       ? `Access until ${new Date(proExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -226,9 +226,9 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
                   disabled={upgradeLoading}
                   className="w-full py-2.5 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro — ₹50'}
+                  {upgradeLoading ? 'Preparing checkout...' : 'Get Reflection Plus for 30 days — ₹50'}
                 </button>
-                <p className="text-center text-[10px] text-on-surface-variant/40 mt-2">One-time payment via Razorpay</p>
+                <p className="text-center text-xs text-on-surface-variant mt-2">One-time purchase · No automatic renewal · Non-refundable</p>
                 {upgradeError && <p role="alert" className="text-xs text-error mt-2">{upgradeError}</p>}
               </div>
             )}

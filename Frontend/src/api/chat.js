@@ -1,13 +1,14 @@
 import apiClient, { API_BASE_URL, refreshSession, expireSession } from './client';
 
 const requestKey = () => crypto.randomUUID();
+const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 export const chatAPI = {
-  getActiveSession: () => apiClient.get('/chat/sessions/active'),
+  getActiveSession: () => apiClient.get('/chat/sessions/active', { headers: { 'X-Client-Time-Zone': timeZone() } }),
   // Start a new therapy session
   createSession: async () => {
     return apiClient.post('/chat/sessions', null, {
-      headers: { 'X-Chat-Request-Version': '2', 'Idempotency-Key': requestKey() },
+      headers: { 'X-Chat-Request-Version': '2', 'Idempotency-Key': requestKey(), 'X-Client-Time-Zone': timeZone() },
     });
   },
 

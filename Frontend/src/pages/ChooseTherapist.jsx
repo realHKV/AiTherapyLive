@@ -263,7 +263,7 @@ export default function ChooseTherapist() {
                 <div className="absolute top-4 right-4 px-2 py-0.5 rounded-full bg-primary text-on-primary text-[10px] font-bold">✨ Popular</div>
                 <div className="absolute -top-8 -right-8 w-32 h-32 bg-primary/15 rounded-full blur-2xl pointer-events-none"></div>
                 <div>
-                  <h3 className="font-headline text-xl font-bold mb-0.5 text-primary">Pro</h3>
+                  <h3 className="font-headline text-xl font-bold mb-0.5 text-primary">Reflection Plus</h3>
                   <p className="text-xs text-on-surface-variant">A smarter AI, built for you.</p>
                 </div>
                 <p className="font-headline text-3xl font-extrabold">₹50<span className="text-sm font-normal text-on-surface-variant"> for 30 days</span></p>
@@ -279,9 +279,9 @@ export default function ChooseTherapist() {
                   disabled={upgradeLoading}
                   className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro →'}
+                  {upgradeLoading ? 'Preparing checkout...' : 'Get Reflection Plus →'}
                 </button>
-                <p className="text-center text-[10px] text-on-surface-variant/50">One-time payment via Razorpay</p>
+                <p className="text-center text-xs text-on-surface-variant">One-time purchase for 30 days · No automatic renewal · Non-refundable</p>
                 {upgradeError && <p role="alert" className="text-xs text-error">{upgradeError}</p>}
               </div>
             </div>

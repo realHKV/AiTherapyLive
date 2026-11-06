@@ -92,6 +92,7 @@ public class ChatTurnWorkflow {
     private final int maxOutputTokens;
     private final ConcurrentHashMap<UUID, Set<CancellationToken>> activeStreams = new ConcurrentHashMap<>();
     private AiOperationalMetrics operationalMetrics;
+    private ChatService chatService;
 
     public ChatTurnWorkflow(PlatformTransactionManager transactionManager, UserRepository users,
                             ConversationRepository conversations, MessageRepository messages,
@@ -134,10 +135,19 @@ public class ChatTurnWorkflow {
         this.operationalMetrics = operationalMetrics;
     }
 
+    @Autowired
+    public void setChatService(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
     /** Reuses an active session on reload; a fresh greeting is accounted and persisted exactly once. */
     public ConversationResponse startSession(UUID userId, String idempotencyKey) {
+        return startSession(userId, idempotencyKey, null);
+    }
+
+    public ConversationResponse startSession(UUID userId, String idempotencyKey, String timeZone) {
         requireKey(idempotencyKey);
-        SessionDecision decision = required(transactions.execute(status -> prepareSession(userId, idempotencyKey)));
+        SessionDecision decision = required(transactions.execute(status -> prepareSession(userId, idempotencyKey, timeZone)));
         if (decision.prepared() == null) return decision.response();
         Prepared prepared = decision.prepared();
         try {
@@ -316,7 +326,7 @@ public class ChatTurnWorkflow {
         activeStreams.values().forEach(tokens -> tokens.forEach(CancellationToken::cancel));
     }
 
-    private SessionDecision prepareSession(UUID userId, String key) {
+    private SessionDecision prepareSession(UUID userId, String key, String timeZone) {
         User user = lockActiveUser(userId);
         var repeated = sessionStarts.findByUserIdAndIdempotencyKey(userId, key);
         if (repeated.isPresent()) {
@@ -330,6 +340,10 @@ public class ChatTurnWorkflow {
         }
 
         Conversation active = conversations.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active").orElse(null);
+        if (active != null && !ChatSessionDay.isToday(active, timeZone)) {
+            chatService.endSession(userId, active.getId());
+            active = null;
+        }
         if (active != null) {
             if (turns.findFirstByConversationIdAndPurposeAndStatusOrderByCreatedAtDesc(
                     active.getId(), "GREETING", "IN_PROGRESS").isPresent())

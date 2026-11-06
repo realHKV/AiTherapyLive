@@ -32,7 +32,7 @@ export function openRazorpayCheckout(Razorpay, purchase, onPayment) {
     amount: purchase.amountPaise,
     currency: purchase.currency,
     name: 'TrustTherapy.ai',
-    description: '30 days of Pro access',
+    description: '30 days of Reflection Plus access (one-time, non-refundable)',
     handler: response => onPayment(response.razorpay_payment_id),
   });
   checkout.open();

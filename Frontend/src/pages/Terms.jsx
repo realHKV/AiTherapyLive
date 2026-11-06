@@ -67,7 +67,7 @@ export default function Terms() {
           <section>
             <h2 className="font-headline text-2xl font-bold mb-4 text-on-surface">4. Subscriptions & Payments</h2>
             <p className="text-on-surface-variant leading-relaxed mb-4">
-              Pro access is purchased as a one-time, 30-day term through Razorpay. It does not renew automatically.
+              Reflection Plus access is purchased as a one-time, 30-day term through Razorpay. It does not renew automatically and is non-refundable.
               A further purchase extends an active term by 30 days. The amount is shown before you confirm payment.
             </p>
           </section>

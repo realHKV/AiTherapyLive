@@ -58,8 +58,8 @@ const FEATURES = [
 const FAQ = [
   { question: 'Is TrustTherapy.ai a licensed therapist?', answer: 'No. It is an AI guided reflection tool, not a licensed clinician, diagnosis, treatment, or emergency service. If you need urgent help, contact local emergency services or a qualified professional.' },
   { question: 'Will it remember what I share?', answer: 'Your conversation stays in your chat history. The app may suggest lasting profile details or memories, but you review and apply those suggestions before they are saved for future AI context.' },
-  { question: 'Can I return to an unfinished conversation?', answer: 'Yes. When an active chat is available, opening Chat resumes it and shows recent messages. You can start a fresh session when you choose.' },
-  { question: 'What is the difference between Free and Pro?', answer: 'Free includes a daily AI usage allowance. Pro provides a higher tier model and expanded usage for 30 days. The app shows your current allowance before you send messages.' },
+  { question: 'Can I return to an unfinished conversation?', answer: 'Yes. An unfinished chat can be resumed on the same local calendar day. A new day starts a new session.' },
+  { question: 'What is the difference between Free and Reflection Plus?', answer: 'Free includes a daily AI usage allowance. Reflection Plus provides a higher tier model and expanded usage for 30 days. It is a one-time, non-renewing, non-refundable purchase.' },
   { question: 'When is this demo available?', answer: 'The demo backend is scheduled to pause from midnight until 7 a.m. India time. The site remains visible, and a countdown shows when chat is expected to return.' },
 ];
 
@@ -140,7 +140,7 @@ export default function Landing() {
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border border-primary/30 bg-surface-container-high backdrop-blur-sm animate-fade-slide">
           <span className="text-2xl">✨</span>
           <div>
-            <p className="font-headline font-bold text-on-surface text-sm">You're already Pro!</p>
+            <p className="font-headline font-bold text-on-surface text-sm">Reflection Plus is already active!</p>
             <p className="text-xs text-on-surface-variant">Redirecting you to your session...</p>
           </div>
         </div>
@@ -241,7 +241,7 @@ export default function Landing() {
               <span className="text-primary italic drop-shadow-xl">speed of thought.</span>
             </h1>
 
-            <p className="max-w-2xl text-base sm:text-lg md:text-xl text-on-surface-variant leading-relaxed mb-8 md:mb-12 font-body font-semibold pointer-events-auto bg-surface/50 backdrop-blur-sm p-4 rounded-2xl">
+            <p className="max-w-2xl text-sm sm:text-lg md:text-xl text-on-surface-variant leading-relaxed mb-8 md:mb-12 font-body font-semibold pointer-events-auto bg-surface/50 backdrop-blur-sm p-4 rounded-2xl">
               Experience a restorative journey with TrustTherapy.ai. Our empathetic AI creates a safe, judgment-free space designed to help you navigate life's complexities with clarity and calm.
             </p>
 
@@ -470,7 +470,7 @@ export default function Landing() {
                 <div className="absolute top-5 right-5 px-3 py-1 rounded-full bg-primary text-on-primary text-xs font-bold font-label">✨ Most Popular</div>
 
                 <div>
-                  <h3 className="font-headline text-2xl font-bold mb-1 text-primary">Pro</h3>
+                  <h3 className="font-headline text-2xl font-bold mb-1 text-primary">Reflection Plus</h3>
                   <p className="text-on-surface-variant text-sm">Unlock a more capable AI guide.</p>
                 </div>
                 <div className="flex items-end gap-1">
@@ -495,9 +495,9 @@ export default function Landing() {
                   disabled={upgradeLoading}
                   className="w-full py-3 rounded-full liquid-gradient text-on-primary font-headline font-bold text-center shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {isAuthenticated && isPro ? '✨ Go to Chat (Already Pro)' : upgradeLoading ? 'Preparing checkout...' : 'Get 30 days of Pro →'}
+                  {isAuthenticated && isPro ? '✨ Go to Chat' : upgradeLoading ? 'Preparing checkout...' : 'Get Reflection Plus →'}
                 </button>
-                <p className="text-center text-xs text-on-surface-variant/50">One-time payment via Razorpay</p>
+                <p className="text-center text-xs text-on-surface-variant">One-time purchase for 30 days · No automatic renewal · Non-refundable</p>
                 {upgradeError && <p role="alert" className="text-xs text-error">{upgradeError}</p>}
               </div>
             </div>

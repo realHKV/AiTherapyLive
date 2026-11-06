@@ -24,9 +24,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -76,6 +78,7 @@ class ChatServiceTest {
         testConversation.setUser(testUser);
         testConversation.setStatus("active");
         testConversation.setTokenCount(0);
+        testConversation.setStartedAt(Instant.now());
 
         testProfile = new TherapyProfile();
         testProfile.setUser(testUser);
@@ -94,13 +97,24 @@ class ChatServiceTest {
         when(messageRepository.findByConversationIdOrderByCreatedAtDescIdDesc(eq(conversationId), any()))
                 .thenReturn(List.of(newer, older));
 
-        var response = chatService.activeSession(userId);
+        var response = chatService.activeSession(userId, "UTC");
 
         assertEquals(conversationId.toString(), response.getId());
         assertEquals("I had a difficult day", response.getRecentMessages().get(0).getContent());
         assertEquals("Would you like to talk about it?", response.getRecentMessages().get(1).getContent());
         verifyNoInteractions(aiGateway, promptBuilder);
         verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void activeSessionDoesNotResumeAnEarlierDay() {
+        testConversation.setStartedAt(Instant.now().minusSeconds(172800));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active"))
+                .thenReturn(Optional.of(testConversation));
+
+        assertNull(chatService.activeSession(userId, "Asia/Kolkata"));
+        verifyNoInteractions(messageRepository);
     }
 
     @Test

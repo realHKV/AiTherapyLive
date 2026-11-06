@@ -40,7 +40,7 @@ export default function Home() {
   }, [navigate]);
 
   const guide = guides[profile?.personaId] || null;
-  const planName = statusLoaded ? (isPro ? 'Pro' : 'Free') : 'Checking plan';
+  const planName = statusLoaded ? (isPro ? 'Reflection Plus' : 'Free') : 'Checking plan';
   const proEnd = proExpiresAt && !Number.isNaN(Date.parse(proExpiresAt))
     ? new Date(proExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
@@ -132,14 +132,15 @@ export default function Home() {
                 <article className="home-card home-plan-card">
                   <span className="home-card-label">YOUR VERSION</span>
                   <div className="home-plan-title"><h2>{planName}</h2><span className={isPro && statusLoaded ? 'home-plan-badge pro' : 'home-plan-badge'}>{statusLoaded ? 'ACTIVE' : 'UNKNOWN'}</span></div>
-                  <p>{statusLoaded ? (isPro ? (proEnd ? `Pro access until ${proEnd}` : 'Pro access is active') : 'Daily AI usage allowance') : 'We could not verify your current plan yet.'}</p>
+                  <p>{statusLoaded ? (isPro ? (proEnd ? `Reflection Plus access until ${proEnd}` : 'Reflection Plus access is active') : 'Daily AI usage allowance') : 'We could not verify your current plan yet.'}</p>
                   {!statusLoaded && !planLoading && <button type="button" className="home-inline-link" onClick={refreshStatus}>Check plan again</button>}
                   {statusLoaded && !isPro && (
                     <button type="button" className="home-inline-link" disabled={upgradeLoading} onClick={() => startUpgrade()}>
-                      {upgradeLoading ? 'Opening checkout...' : 'Explore Pro'} <span aria-hidden="true">↗</span>
+                      {upgradeLoading ? 'Opening checkout...' : 'Explore Reflection Plus'} <span aria-hidden="true">↗</span>
                     </button>
                   )}
                   {upgradeError && <p className="home-inline-error" role="alert">{upgradeError}</p>}
+                  {statusLoaded && <p className="home-plan-terms">Reflection Plus is a one-time, 30-day purchase. It does not renew and is non-refundable.</p>}
                   {location.state?.showUpgrade && !isPro && <p className="home-inline-note">Your plan is shown here before you decide whether to upgrade.</p>}
                 </article>
 

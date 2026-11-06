@@ -67,10 +67,11 @@ public class ChatService {
 
     /** Resume an existing conversation without generating a greeting or consuming chat quota. */
     @Transactional(readOnly = true)
-    public ConversationResponse activeSession(UUID userId) {
+    public ConversationResponse activeSession(UUID userId, String timeZone) {
         userRepository.findById(userId).filter(User::isActive)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
         return conversationRepository.findFirstByUserIdAndStatusOrderByStartedAtDesc(userId, "active")
+                .filter(conversation -> ChatSessionDay.isToday(conversation, timeZone))
                 .map(conversation -> {
                     List<Message> recent = new ArrayList<>(messageRepository
                             .findByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId(), PageRequest.of(0, 50)));

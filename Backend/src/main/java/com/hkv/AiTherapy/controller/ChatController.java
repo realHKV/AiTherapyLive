@@ -41,20 +41,22 @@ public class ChatController {
     }
 
     @GetMapping("/active")
-    public ResponseEntity<ApiResponse<ConversationResponse>> activeSession(@AuthenticationPrincipal String userId) {
+    public ResponseEntity<ApiResponse<ConversationResponse>> activeSession(@AuthenticationPrincipal String userId,
+                                                                          @RequestHeader(value = "X-Client-Time-Zone", required = false) String timeZone) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(chatService.activeSession(UUID.fromString(userId))));
+                .body(ApiResponse.success(chatService.activeSession(UUID.fromString(userId), timeZone)));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ConversationResponse>> startSession(@AuthenticationPrincipal String userId,
                                                                           @RequestHeader(value = "X-Chat-Request-Version", required = false) String version,
-                                                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+                                                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                                          @RequestHeader(value = "X-Client-Time-Zone", required = false) String timeZone) {
         if (version != null) {
             requireV2(version, "X-Chat-Request-Version");
-            return ResponseEntity.ok(ApiResponse.success(workflow().startSession(UUID.fromString(userId), idempotencyKey)));
+            return ResponseEntity.ok(ApiResponse.success(workflow().startSession(UUID.fromString(userId), idempotencyKey, timeZone)));
         }
-        ConversationResponse response = workflow().startSession(UUID.fromString(userId), effectiveKey(idempotencyKey));
+        ConversationResponse response = workflow().startSession(UUID.fromString(userId), effectiveKey(idempotencyKey), timeZone);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
