@@ -19,7 +19,7 @@ public final class MigrationMain {
             var result = Flyway.configure()
                     .dataSource(url, username, password)
                     .locations("classpath:db/migration")
-                    .baselineOnMigrate(true)
+                    .baselineOnMigrate(false)
                     .validateOnMigrate(true)
                     .load()
                     .migrate();

@@ -79,6 +79,7 @@ import json
 import os
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
 source, webhook_source, destination, scope, key_id_source, key_secret_source = sys.argv[1:]
 with open(source, encoding="utf-8") as handle:
@@ -108,8 +109,8 @@ if not required.issubset(settings):
 expected_key_prefix = "rzp_live_" if scope == "production" else "rzp_test_"
 if not settings["RAZORPAY_KEY_ID"].startswith(expected_key_prefix):
     raise SystemExit("Razorpay key mode does not match runtime scope")
-if scope == "production" and "aitherapy_staging" in settings["DATABASE_URL"]:
-    raise SystemExit("Production runtime cannot use the staging database")
+if scope == "production" and urlsplit(settings["DATABASE_URL"].removeprefix("jdbc:")).path != "/aitherapy_production":
+    raise SystemExit("Production runtime must use aitherapy_production")
 if settings.get("SERVER_ADDRESS") != "127.0.0.1":
     raise SystemExit("Private backend must bind to loopback")
 if not settings["DATABASE_URL"].startswith("jdbc:postgresql://") or \
