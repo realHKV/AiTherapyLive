@@ -11,13 +11,17 @@ case "$runtime_scope" in
 esac
 parameter_name="/aitherapy/$runtime_scope/runtime-env"
 webhook_parameter_name="/aitherapy/$runtime_scope/razorpay-webhook-secret"
+api_key_id_parameter_name="/aitherapy/production/razorpay-key-id"
+api_key_secret_parameter_name="/aitherapy/production/razorpay-key-secret"
 runtime_dir="/etc/aitherapy"
 runtime_file="$runtime_dir/runtime.env"
 parameter_file="$(mktemp)"
 webhook_parameter_file="$(mktemp)"
 webhook_error_file="$(mktemp)"
+api_key_id_file="$(mktemp)"
+api_key_secret_file="$(mktemp)"
 previous_file=""
-trap 'rm -f "$parameter_file" "$webhook_parameter_file" "$webhook_error_file"; if [ -n "$previous_file" ]; then rm -f "$previous_file"; fi' EXIT
+trap 'rm -f "$parameter_file" "$webhook_parameter_file" "$webhook_error_file" "$api_key_id_file" "$api_key_secret_file"; if [ -n "$previous_file" ]; then rm -f "$previous_file"; fi' EXIT
 
 start_container() {
   local selected_image="$1"
@@ -62,17 +66,31 @@ if ! aws ssm get-parameter --region ap-southeast-2 --name "$webhook_parameter_na
     exit 1
   fi
 fi
+if [ "$runtime_scope" = production ]; then
+  chmod 0600 "$api_key_id_file" "$api_key_secret_file"
+  aws ssm get-parameter --region ap-southeast-2 --name "$api_key_id_parameter_name" \
+    --with-decryption --output json > "$api_key_id_file"
+  aws ssm get-parameter --region ap-southeast-2 --name "$api_key_secret_parameter_name" \
+    --with-decryption --output json > "$api_key_secret_file"
+fi
 
-python3 - "$parameter_file" "$webhook_parameter_file" "$runtime_file" "$runtime_scope" <<'PY'
+python3 - "$parameter_file" "$webhook_parameter_file" "$runtime_file" "$runtime_scope" "$api_key_id_file" "$api_key_secret_file" <<'PY'
 import json
 import os
 import sys
 import tempfile
 
-source, webhook_source, destination, scope = sys.argv[1:]
+source, webhook_source, destination, scope, key_id_source, key_secret_source = sys.argv[1:]
 with open(source, encoding="utf-8") as handle:
     values = json.load(handle)["Parameter"]["Value"]
 settings = json.loads(values)
+if scope == "production":
+    if any(key in settings for key in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET")):
+        raise SystemExit("Production Razorpay credentials must use separate parameters")
+    for key, source_path in (("RAZORPAY_KEY_ID", key_id_source),
+                             ("RAZORPAY_KEY_SECRET", key_secret_source)):
+        with open(source_path, encoding="utf-8") as handle:
+            settings[key] = json.load(handle)["Parameter"]["Value"]
 if os.path.getsize(webhook_source):
     with open(webhook_source, encoding="utf-8") as handle:
         webhook_secret = json.load(handle)["Parameter"]["Value"]
