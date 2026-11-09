@@ -1,3 +1,5 @@
+import CalmOrbit from '../components/CalmOrbit';
+import usePageReveal from '../hooks/usePageReveal';
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
@@ -65,6 +67,7 @@ const FAQ = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  const revealRef = usePageReveal();
   const { isAuthenticated } = useAuth();
   const { isPro, startUpgrade, upgradeLoading, upgradeError } = useSubscription();
   const [activeSection, setActiveSection] = useState('home');
@@ -134,7 +137,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container min-h-screen overflow-x-hidden">
+    <div ref={revealRef} className="welcome-page bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container min-h-screen overflow-x-hidden">
       {/* Already Pro Toast */}
       {showAlreadyPro && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border border-primary/30 bg-surface-container-high backdrop-blur-sm animate-fade-slide">
@@ -202,29 +205,18 @@ export default function Landing() {
       <main className="pt-16 md:pt-24">
         {/* Hero Section Wrapper */}
         <div id="home" className="relative w-full min-h-[90vh] flex items-center justify-center overflow-hidden">
-          {/* Spline Full Background */}
-          <div className="absolute inset-0 z-0 bg-surface">
-            {/* Touch/Gyro Blocker Overlay for Mobile */}
-            <div className="md:hidden absolute inset-0 z-10 w-full h-full"></div>
-            {/* Desktop: Animated 3D Galaxy */}
-            <iframe 
-              src="https://my.spline.design/galaxy-1G5qZ7rvP9fNeubiNbAU1an2/" 
-              frameBorder="0" 
-              width="100%" 
-              height="100%"
-              title="Spline 3D ModelDesktop"
-              allow="accelerometer 'none'; gyroscope 'none'; magnetometer 'none'"
-              style={{ transform: 'translateZ(0)', willChange: 'transform' }}
-              className="hidden md:block w-full h-full pointer-events-none transition-all duration-1000 invert hue-rotate-180 brightness-[1.2] contrast-[1.1] dark:invert-0 dark:hue-rotate-0 dark:brightness-100 dark:contrast-100"
-            ></iframe>
+          <div className="welcome-atmosphere welcome-mobile-atmosphere" aria-hidden="true"><span /><span /><span /></div>
+          <iframe
+            src="https://my.spline.design/galaxy-1G5qZ7rvP9fNeubiNbAU1an2/"
+            title="Animated galaxy background"
+            aria-hidden="true"
+            tabIndex={-1}
+            loading="lazy"
+            allow="accelerometer 'none'; gyroscope 'none'; magnetometer 'none'"
+            className="welcome-galaxy hidden md:block absolute inset-0 w-full h-full border-0 pointer-events-none invert hue-rotate-180 brightness-[1.2] contrast-[1.1] dark:invert-0 dark:hue-rotate-0 dark:brightness-100 dark:contrast-100"
+          />
 
-            {/* Mobile: Static Fallback Galaxy */}
-            <div className="md:hidden w-full h-full relative overflow-hidden bg-surface dark:bg-[#060e20]">
-              <div className="absolute top-10 -left-10 w-72 h-72 bg-[#cc97ff]/20 rounded-full blur-[60px]"></div>
-              <div className="absolute top-[40%] -right-10 w-72 h-72 bg-[#53ddfc]/15 rounded-full blur-[70px]"></div>
-              <div className="absolute bottom-10 left-[20%] w-60 h-60 bg-[#cc97ff]/10 rounded-full blur-[60px]"></div>
-            </div>
-          </div>
+          <div className="welcome-hero-scrim" aria-hidden="true" />
 
           {/* Hero Content Overlay (pointer-events-none allows interacting with 3D model through empty space) */}
           <section className="relative z-10 px-6 py-6 md:py-20 max-w-7xl mx-auto flex flex-col items-center text-center pointer-events-none">
@@ -236,13 +228,14 @@ export default function Landing() {
               <span className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant font-label">Now in Public Beta</span>
             </div>
 
-            <h1 className="font-headline text-[clamp(2.5rem,12vw,3rem)] md:text-7xl lg:text-8xl font-extrabold tracking-tighter leading-[0.95] md:leading-[0.9] mb-8 text-glow pointer-events-auto">
-              Healing at the <br />
-              <span className="text-primary italic drop-shadow-xl">speed of thought.</span>
+            <CalmOrbit compact />
+            <h1 className="welcome-hero-heading font-headline text-[clamp(2.5rem,12vw,3rem)] md:text-7xl lg:text-8xl font-extrabold tracking-tighter leading-[0.95] md:leading-[0.9] mb-8 text-glow pointer-events-auto">
+              A&nbsp;little space <br />
+              <span className="text-primary italic drop-shadow-xl">just for you.</span>
             </h1>
 
             <p className="max-w-2xl text-sm sm:text-lg md:text-xl text-on-surface-variant leading-relaxed mb-8 md:mb-12 font-body font-semibold pointer-events-auto bg-surface/50 backdrop-blur-sm p-4 rounded-2xl">
-              Experience a restorative journey with TrustTherapy.ai. Our empathetic AI creates a safe, judgment-free space designed to help you navigate life's complexities with clarity and calm.
+              Slow down, put your thoughts into words, and find your next small step. Your AI guide is here whenever you’re ready to reflect.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto pointer-events-auto">
@@ -259,7 +252,7 @@ export default function Landing() {
         </div>
 
         {/* Why AI Therapy Section */}
-        <section id="features" className="py-24 px-6 max-w-7xl mx-auto">
+        <section data-reveal id="features" className="py-24 px-6 max-w-7xl mx-auto">
           <h2 className="font-headline text-4xl md:text-5xl font-bold mb-8 tracking-tight text-center">Why AI Therapy?</h2>
 
           {/* Context / Mission Statement Paragraph */}
@@ -356,7 +349,7 @@ export default function Landing() {
         </section>
 
         {/* Security & Privacy Section */}
-        <section id="security" className="bg-surface-container-low py-20 md:py-32 px-6">
+        <section data-reveal id="security" className="bg-surface-container-low py-20 md:py-32 px-6">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <div>
               <h2 className="font-headline text-4xl md:text-6xl font-bold mb-8 tracking-tighter">Your mind is your <br /><span className="text-primary italic">private sanctuary.</span></h2>
@@ -417,7 +410,7 @@ export default function Landing() {
         </section>
 
         {/* Pricing Section */}
-        <section id="pricing" className="py-28 px-6">
+        <section data-reveal id="pricing" className="py-28 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-5">
@@ -474,7 +467,7 @@ export default function Landing() {
                   <p className="text-on-surface-variant text-sm">Unlock a more capable AI guide.</p>
                 </div>
                 <div className="flex items-end gap-1">
-                  <span className="font-headline text-5xl font-extrabold">₹50</span>
+                  <span className="font-headline text-5xl font-extrabold">₹100</span>
                   <span className="text-on-surface-variant mb-2">for 30 days</span>
                 </div>
                 <ul className="space-y-3 text-sm">
@@ -504,7 +497,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="faq" aria-labelledby="faq-title" className="py-24 px-6 bg-surface-container-low">
+        <section data-reveal id="faq" aria-labelledby="faq-title" className="py-24 px-6 bg-surface-container-low">
           <div className="max-w-4xl mx-auto">
             <p className="text-xs font-bold uppercase tracking-widest text-primary mb-4">Good to know</p>
             <h2 id="faq-title" className="font-headline text-4xl md:text-5xl font-bold tracking-tight mb-5">Questions before you begin</h2>

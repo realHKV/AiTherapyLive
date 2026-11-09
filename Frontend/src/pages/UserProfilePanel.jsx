@@ -226,7 +226,7 @@ export default function UserProfilePanel({ isOpen, onClose, profile, profileRevi
                   disabled={upgradeLoading}
                   className="w-full py-2.5 rounded-full liquid-gradient text-on-primary font-headline font-bold text-sm shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {upgradeLoading ? 'Preparing checkout...' : 'Get Reflection Plus for 30 days — ₹50'}
+                  {upgradeLoading ? 'Preparing checkout...' : 'Get Reflection Plus for 30 days — ₹100'}
                 </button>
                 <p className="text-center text-xs text-on-surface-variant mt-2">One-time purchase · No automatic renewal · Non-refundable</p>
                 {upgradeError && <p role="alert" className="text-xs text-error mt-2">{upgradeError}</p>}

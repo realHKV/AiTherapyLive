@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @Service
 public class SubscriptionService {
-    public static final int PRICE_PAISE = 5000;
+    public static final int PRICE_PAISE = 10000;
     public static final String CURRENCY = "INR";
 
     private final UserRepository users;

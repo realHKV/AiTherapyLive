@@ -1,3 +1,4 @@
+import CalmOrbit from '../components/CalmOrbit';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -94,7 +95,7 @@ export default function Home() {
             <section className="home-grid" aria-label="Your overview">
               <div className="home-main-column">
                 <article className="home-session-card">
-                  <div className="home-session-art" aria-hidden="true"><span>✦</span><span>✳</span><span>✦</span></div>
+                  <div className="home-session-orbit"><CalmOrbit /></div>
                   <div className="home-session-content">
                     <span className="home-card-label">YOUR NEXT STEP</span>
                     <h2>There’s room for whatever is on your mind.</h2>
@@ -105,6 +106,7 @@ export default function Home() {
                   </div>
                 </article>
 
+                <div className="home-gentle-note"><span aria-hidden="true">✦</span><p>You don’t need to have it all figured out.<br /><strong>Start wherever you are.</strong></p></div>
                 <article className="home-card home-guide-card">
                   <div className="home-section-heading">
                     <div><span className="home-card-label">YOUR AI GUIDE</span><h2>Who you’ll talk with</h2></div>

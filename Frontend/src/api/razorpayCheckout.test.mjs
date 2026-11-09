@@ -12,13 +12,13 @@ test('checkout uses only server purchase details and forwards payment ID', () =>
   }
   openRazorpayCheckout(FakeRazorpay, {
     purchaseId: 'purchase', orderId: 'order_123', keyId: 'rzp_test_123',
-    amountPaise: 5000, currency: 'INR',
+    amountPaise: 10000, currency: 'INR',
   }, paymentId => { receivedPaymentId = paymentId; });
 
   assert.equal(opened, true);
   assert.equal(options.order_id, 'order_123');
   assert.equal(options.key, 'rzp_test_123');
-  assert.equal(options.amount, 5000);
+  assert.equal(options.amount, 10000);
   options.handler({ razorpay_payment_id: 'pay_123456' });
   assert.equal(receivedPaymentId, 'pay_123456');
 });
@@ -30,4 +30,12 @@ test('checkout refuses an incomplete or invalid server order', () => {
   assert.throws(() => openRazorpayCheckout(FakeRazorpay, {
     orderId: 'order_123', keyId: 'rzp_test_123', amountPaise: 0, currency: 'INR',
   }, () => {}), /Invalid payment order/);
+});
+
+
+test('checkout refuses an order whose price differs from the displayed ₹100', () => {
+  class FakeRazorpay { constructor() { throw new Error('Should not open checkout'); } }
+  assert.throws(() => openRazorpayCheckout(FakeRazorpay, {
+    orderId: 'order_123', keyId: 'rzp_test_123', amountPaise: 5000, currency: 'INR',
+  }, () => {}), /price does not match/);
 });

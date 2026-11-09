@@ -1,3 +1,4 @@
+import CalmOrbit from '../components/CalmOrbit';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { chatAPI } from '../api/chat';
@@ -476,7 +477,7 @@ export default function Chat() {
         {isSessionStarting ? (
           /* Loading State */
           <div className="flex-1 flex flex-col items-center justify-center gap-6">
-            <div className="w-12 h-12 rounded-full border-4 border-outline-variant/30 border-t-primary animate-spin-slow" />
+            <CalmOrbit compact />
             <p className="text-on-surface-variant font-medium text-lg animate-pulse">{loadingMessage}</p>
           </div>
         ) : (
@@ -505,8 +506,9 @@ export default function Chat() {
 
               {messages.length === 0 && (
                 <div className="mx-auto max-w-lg text-center py-12">
-                  <h1 className="font-headline text-2xl font-bold">Your conversation is ready</h1>
-                  <p className="text-on-surface-variant mt-3">Share what is on your mind. You can return to this chat later.</p>
+                  <CalmOrbit compact />
+                  <h1 className="font-headline text-2xl font-bold">A moment for you</h1>
+                  <p className="text-on-surface-variant mt-3">There’s no perfect place to begin. Share a little of what’s on your mind.</p>
                 </div>
               )}
 

@@ -26,6 +26,9 @@ export function openRazorpayCheckout(Razorpay, purchase, onPayment) {
       || purchase.amountPaise <= 0 || purchase.currency !== 'INR') {
     throw new Error('Invalid payment order. Please try again.');
   }
+  if (purchase.amountPaise !== 10000) {
+    throw new Error('Checkout is temporarily unavailable because the order price does not match the displayed price.');
+  }
   const checkout = new Razorpay({
     key: purchase.keyId,
     order_id: purchase.orderId,

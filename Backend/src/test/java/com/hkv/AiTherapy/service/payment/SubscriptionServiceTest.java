@@ -25,7 +25,7 @@ class SubscriptionServiceTest {
         UUID userId = UUID.randomUUID();
         User user = User.builder().id(userId).isActive(true).build();
         when(users.findById(userId)).thenReturn(Optional.of(user));
-        when(razorpay.createOrder(any(), eq(5000), eq("INR"))).thenReturn("order_fixture123");
+        when(razorpay.createOrder(any(), eq(10000), eq("INR"))).thenReturn("order_fixture123");
         SubscriptionService service = new SubscriptionService(users, mock(UserSubscriptionRepository.class),
                 purchases, razorpay, mock(PaymentCaptureService.class), mock(EntitlementService.class));
         ReflectionTestUtils.setField(service, "razorpayKeyId", "rzp_test_fixture");
@@ -35,7 +35,7 @@ class SubscriptionServiceTest {
         verify(purchases).save(saved.capture());
         assertEquals(userId, saved.getValue().getUser().getId());
         assertEquals("order_fixture123", saved.getValue().getRazorpayOrderId());
-        assertEquals(5000, saved.getValue().getExpectedAmountPaise());
+        assertEquals(10000, saved.getValue().getExpectedAmountPaise());
         assertEquals("INR", saved.getValue().getCurrency());
         assertEquals("order_fixture123", response.orderId());
         assertEquals("rzp_test_fixture", response.keyId());

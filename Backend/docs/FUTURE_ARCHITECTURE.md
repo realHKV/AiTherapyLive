@@ -99,7 +99,7 @@ Implementation rules:
 6. On user limit exhaustion return HTTP 429 with machine-readable code, `Retry-After`/reset time where applicable, and remaining allowance. Use a distinct capacity-unavailable response for provider/global outages. After SSE headers are sent, emit a defined terminal error event and close; HTTP status can no longer be changed.
 7. Keep login/register/refresh abuse limits separate from chat quotas (IP plus identity-aware throttling with trusted proxy handling). If Redis/usage accounting is unavailable, reject new billable generation with a clear retryable response rather than bypassing the budget.
 
-The current ₹50/30-day PRO payment amount is hardcoded. Do not assume it funds 1,000 Bedrock requests plus Fargate, DB, Redis, payment fees, and voice. Calculate before launch:
+The current ₹100/30-day PRO payment amount is hardcoded. Do not assume it funds 1,000 Bedrock requests plus Fargate, DB, Redis, payment fees, and voice. Calculate before launch:
 
 ```text
 period AI cost = Σ(input_tokens × input_rate + output_tokens × output_rate)
@@ -152,7 +152,7 @@ Proposed transport: browser microphone → authenticated WebSocket to backend vo
 
 Plan audio formats/sample rates, turn detection, interruption/barge-in, backpressure, idle/disconnect cancellation, provider session-duration rollover, deployment draining, and transcript persistence. Store final transcript turns through the normal conversation model with deduplication; do not retain raw audio by default. Make microphone use and retention behavior clear to users. Recheck entitlement and session budget during the connection, not only at socket open.
 
-A voice beta could start with one connection/user, ten-minute maximum sessions, and thirty minutes per paid period, but these are evaluation targets only. Set monetary/token limits after measuring the selected model's actual audio and text charging. Do not include unlimited voice in the existing ₹50 plan. A speech-to-text → text model → text-to-speech pipeline is an alternative with separate latency and billing tradeoffs, not an automatic equivalent to a conversational speech model.
+A voice beta could start with one connection/user, ten-minute maximum sessions, and thirty minutes per paid period, but these are evaluation targets only. Set monetary/token limits after measuring the selected model's actual audio and text charging. Do not include unlimited voice in the existing ₹100 plan. A speech-to-text → text model → text-to-speech pipeline is an alternative with separate latency and billing tradeoffs, not an automatic equivalent to a conversational speech model.
 
 ## 8. Builder milestones and definition of done
 
@@ -174,4 +174,4 @@ M2–M4 should land in separate changes even if developed before ECS deployment.
 
 Each task must name: current source files, desired behavior, new config names/defaults, schema/contract impact, acceptance tests, rollback, and unresolved deployment inputs. Proposed new names such as `BEDROCK_FREE_MODEL_ID`, `BEDROCK_PRO_MODEL_ID`, `BEDROCK_SUMMARY_MODEL_ID`, `BEDROCK_REGION`, and `USAGE_*` are design placeholders until implementation wires and documents them; setting them today does nothing.
 
-Before production choices, record: AWS region/budget, Fargate task sizing/scaling, Docker Hub visibility/ECR mirror choice, anticipated active users, expected turns per user, retained ₹50 pricing or new pricing, supported conversation languages, and provider data policy. These questions do not block local code/document preparation, but they do block claiming a validated production capacity or cost plan.
+Before production choices, record: AWS region/budget, Fargate task sizing/scaling, Docker Hub visibility/ECR mirror choice, anticipated active users, expected turns per user, ₹100 pricing, supported conversation languages, and provider data policy. These questions do not block local code/document preparation, but they do block claiming a validated production capacity or cost plan.

@@ -266,7 +266,7 @@ export default function ChooseTherapist() {
                   <h3 className="font-headline text-xl font-bold mb-0.5 text-primary">Reflection Plus</h3>
                   <p className="text-xs text-on-surface-variant">A smarter AI, built for you.</p>
                 </div>
-                <p className="font-headline text-3xl font-extrabold">₹50<span className="text-sm font-normal text-on-surface-variant"> for 30 days</span></p>
+                <p className="font-headline text-3xl font-extrabold">₹100<span className="text-sm font-normal text-on-surface-variant"> for 30 days</span></p>
                 <ul className="space-y-2 text-xs">
                   {['Everything in Free', 'Priority AI model', 'Faster responses', 'Early features'].map(f => (
                     <li key={f} className="flex items-center gap-2 text-on-surface font-medium">
