@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run on the Sydney EC2 host through SSM.
-image="${1:?Usage: private-ec2-start.sh IMAGE}"
-parameter_name="/aitherapy/demo/runtime-env"
-webhook_parameter_name="/aitherapy/demo/razorpay-webhook-secret"
+# Run on the Sydney EC2 host through SSM. The production cutover replaces the
+# demo container on this same host; the previous image and env remain rollback inputs.
+image="${1:?Usage: private-ec2-start.sh IMAGE [demo|production]}"
+runtime_scope="${2:-demo}"
+case "$runtime_scope" in
+  demo|production) ;;
+  *) echo 'Runtime scope must be demo or production' >&2; exit 2 ;;
+esac
+parameter_name="/aitherapy/$runtime_scope/runtime-env"
+webhook_parameter_name="/aitherapy/$runtime_scope/razorpay-webhook-secret"
 runtime_dir="/etc/aitherapy"
 runtime_file="$runtime_dir/runtime.env"
 parameter_file="$(mktemp)"
@@ -49,7 +55,7 @@ aws ssm get-parameter --region ap-southeast-2 --name "$parameter_name" \
   --with-decryption --output json > "$parameter_file"
 if ! aws ssm get-parameter --region ap-southeast-2 --name "$webhook_parameter_name" \
     --with-decryption --output json > "$webhook_parameter_file" 2> "$webhook_error_file"; then
-  if grep -q '(ParameterNotFound)' "$webhook_error_file"; then
+  if [ "$runtime_scope" = demo ] && grep -q '(ParameterNotFound)' "$webhook_error_file"; then
     : > "$webhook_parameter_file"
   else
     cat "$webhook_error_file" >&2
@@ -57,13 +63,13 @@ if ! aws ssm get-parameter --region ap-southeast-2 --name "$webhook_parameter_na
   fi
 fi
 
-python3 - "$parameter_file" "$webhook_parameter_file" "$runtime_file" <<'PY'
+python3 - "$parameter_file" "$webhook_parameter_file" "$runtime_file" "$runtime_scope" <<'PY'
 import json
 import os
 import sys
 import tempfile
 
-source, webhook_source, destination = sys.argv[1:]
+source, webhook_source, destination, scope = sys.argv[1:]
 with open(source, encoding="utf-8") as handle:
     values = json.load(handle)["Parameter"]["Value"]
 settings = json.loads(values)
@@ -81,6 +87,11 @@ required = {
 }
 if not required.issubset(settings):
     raise SystemExit("Incomplete private runtime parameter")
+expected_key_prefix = "rzp_live_" if scope == "production" else "rzp_test_"
+if not settings["RAZORPAY_KEY_ID"].startswith(expected_key_prefix):
+    raise SystemExit("Razorpay key mode does not match runtime scope")
+if scope == "production" and "aitherapy_staging" in settings["DATABASE_URL"]:
+    raise SystemExit("Production runtime cannot use the staging database")
 if settings.get("SERVER_ADDRESS") != "127.0.0.1":
     raise SystemExit("Private backend must bind to loopback")
 if not settings["DATABASE_URL"].startswith("jdbc:postgresql://") or \
