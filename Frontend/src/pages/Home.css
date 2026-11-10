@@ -27,6 +27,21 @@
 .home-intro h1 { max-width: 760px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(38px, 5vw, 64px); letter-spacing: -.065em; font-weight: 800; line-height: 1.12; overflow-wrap: anywhere; }
 .home-intro h1 em { font-style: normal; color: rgb(var(--color-primary)); }
 .home-intro-copy { max-width: 590px; color: rgb(var(--color-on-surface-variant)); font-size: 15px; line-height: 1.7; margin-top: 15px; }
+.home-upgrade-spotlight { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 24px 35px; margin: -8px 0 28px; padding: 26px 32px; border: 1px solid rgb(var(--color-primary) / .38); border-radius: 25px; background: linear-gradient(115deg, rgb(var(--color-primary) / .16), rgb(var(--color-surface-container-low) / .94) 55%, rgb(var(--color-secondary) / .09)); box-shadow: 0 16px 44px rgb(var(--color-primary) / .11); }
+.home-upgrade-copy { flex: 1 1 280px; min-width: 0; }
+.home-upgrade-copy .home-card-label { color: rgb(var(--color-primary)); }
+.home-upgrade-copy h2 { margin: 8px 0 6px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(23px, 3vw, 31px); font-weight: 800; letter-spacing: -.045em; }
+.home-upgrade-copy p { max-width: 470px; color: rgb(var(--color-on-surface-variant)); font-size: 13px; line-height: 1.6; }
+.home-upgrade-offer { flex: 0 1 300px; display: grid; gap: 8px; }
+.home-upgrade-price { display: flex; align-items: baseline; justify-content: center; gap: 9px; white-space: nowrap; }
+.home-upgrade-price strong { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 37px; font-weight: 800; letter-spacing: -.055em; line-height: 1; color: rgb(var(--color-on-surface)); }
+.home-upgrade-price span { font-size: 13px; font-weight: 700; color: rgb(var(--color-on-surface-variant)); }
+.home-upgrade-button { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 100px; background: rgb(var(--color-primary)); color: rgb(var(--color-on-primary)); font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 9px 22px rgb(var(--color-primary) / .25); transition: transform .2s, box-shadow .2s; }
+.home-upgrade-button:hover { transform: translateY(-2px); box-shadow: 0 13px 26px rgb(var(--color-primary) / .3); }
+.home-upgrade-button:disabled { opacity: .6; cursor: wait; transform: none; }
+.home-upgrade-button:focus-visible { outline: 2px solid rgb(var(--color-primary)); outline-offset: 3px; }
+.home-upgrade-fineprint { text-align: center; font-size: 10px; line-height: 1.5; color: rgb(var(--color-on-surface-variant)); }
+.home-upgrade-error { flex-basis: 100%; margin: 0; }
 .home-date { min-width: 145px; display: flex; flex-direction: column; align-items: flex-end; padding-bottom: 5px; }
 .home-date span { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: rgb(var(--color-on-surface-variant)); }
 .home-date strong { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; }
@@ -83,4 +98,5 @@
 
 @media (max-width: 850px) { .home-grid, .home-memories-grid { grid-template-columns: 1fr; }.home-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }.home-date { display: none; } }
 @media (max-width: 620px) { .home-header-inner { padding: 0 20px; min-height: 66px; }.home-main { padding: 39px 20px 35px; }.home-intro { margin-bottom: 30px; }.home-intro h1 { font-size: clamp(32px, 9vw, 39px); }.home-side-column { grid-template-columns: 1fr; }.home-card { padding: 23px; }.home-session-card { min-height: 370px; padding: 26px; }.home-session-art { right: -65px; top: -65px; opacity: .7; }.home-section-heading { align-items: flex-start; flex-wrap: wrap; }.home-guide-details { gap: 15px; }.home-footer-note { margin-top: 26px; } }
+@media (max-width: 620px) { .home-upgrade-spotlight { padding: 24px; margin: -6px 0 22px; gap: 20px; }.home-upgrade-offer { flex: 1 1 100%; }.home-upgrade-price { justify-content: flex-start; }.home-upgrade-fineprint { text-align: left; } }
 @media (max-width: 360px) { .home-header-inner { padding: 0 16px; }.home-brand { font-size: 18px; }.home-header-actions { gap: 6px; }.home-main { padding-left: 16px; padding-right: 16px; }.home-card { padding: 20px; }.home-session-card { padding: 22px; min-height: 400px; }.home-guide-avatar { width: 60px; height: 60px; }.home-section-heading .home-inline-link { min-height: 44px; display: inline-flex; align-items: center; } }

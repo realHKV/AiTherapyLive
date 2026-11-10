@@ -92,6 +92,24 @@ export default function Home() {
               </div>
             </section>
 
+            {statusLoaded && !isPro && (
+              <section className="home-upgrade-spotlight" aria-labelledby="home-upgrade-title">
+                <div className="home-upgrade-copy">
+                  <span className="home-card-label">WHEN YOU WANT MORE ROOM</span>
+                  <h2 id="home-upgrade-title">Meet Reflection Plus</h2>
+                  <p>A higher tier AI guide and more space to talk each day, whenever you need it.</p>
+                </div>
+                <div className="home-upgrade-offer">
+                  <p className="home-upgrade-price"><strong>₹100</strong><span>for 30 days</span></p>
+                  <button type="button" className="home-upgrade-button" disabled={upgradeLoading} onClick={() => startUpgrade()}>
+                    {upgradeLoading ? 'Opening checkout...' : 'Get Reflection Plus'} <span aria-hidden="true">↗</span>
+                  </button>
+                  <p className="home-upgrade-fineprint">One-time purchase · No automatic renewal · Non-refundable</p>
+                </div>
+                {upgradeError && <p className="home-inline-error home-upgrade-error" role="alert">{upgradeError}</p>}
+              </section>
+            )}
+
             <section className="home-grid" aria-label="Your overview">
               <div className="home-main-column">
                 <article className="home-session-card">
@@ -136,13 +154,7 @@ export default function Home() {
                   <div className="home-plan-title"><h2>{planName}</h2><span className={isPro && statusLoaded ? 'home-plan-badge pro' : 'home-plan-badge'}>{statusLoaded ? 'ACTIVE' : 'UNKNOWN'}</span></div>
                   <p>{statusLoaded ? (isPro ? (proEnd ? `Reflection Plus access until ${proEnd}` : 'Reflection Plus access is active') : 'Daily AI usage allowance') : 'We could not verify your current plan yet.'}</p>
                   {!statusLoaded && !planLoading && <button type="button" className="home-inline-link" onClick={refreshStatus}>Check plan again</button>}
-                  {statusLoaded && !isPro && (
-                    <button type="button" className="home-inline-link" disabled={upgradeLoading} onClick={() => startUpgrade()}>
-                      {upgradeLoading ? 'Opening checkout...' : 'Explore Reflection Plus'} <span aria-hidden="true">↗</span>
-                    </button>
-                  )}
-                  {upgradeError && <p className="home-inline-error" role="alert">{upgradeError}</p>}
-                  {statusLoaded && <p className="home-plan-terms">Reflection Plus is a one-time, 30-day purchase. It does not renew and is non-refundable.</p>}
+                  {statusLoaded && isPro && <p className="home-plan-terms">Your 30-day access ends on the date shown above. It does not renew automatically.</p>}
                   {location.state?.showUpgrade && !isPro && <p className="home-inline-note">Your plan is shown here before you decide whether to upgrade.</p>}
                 </article>
 
