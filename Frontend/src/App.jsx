@@ -52,6 +52,11 @@ function App() {
     <SubscriptionProvider>
       <BrowserRouter>
         <DemoScheduleBanner />
+        {import.meta.env.VITE_PAYMENT_REVIEW_MODE === 'true' && (
+          <div role="status" className="bg-primary-container px-4 py-2 text-center text-sm font-semibold text-on-primary-container">
+            Payments are in test mode while we finish launch. No real charge will be made.
+          </div>
+        )}
         <Suspense fallback={<RouteLoading />}>
         <Routes>
           {/* Public */}
