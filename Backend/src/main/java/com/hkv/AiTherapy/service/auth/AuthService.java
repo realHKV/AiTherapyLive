@@ -22,6 +22,7 @@ public class AuthService {
     @Value("${jwt.access-token-expiry}")
     private long accessTokenExpirySeconds;
 
+
     public AuthService(UserRepository userRepository, 
                        PasswordEncoder passwordEncoder,
                        JwtTokenProvider jwtTokenProvider, 
@@ -69,11 +70,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refresh(String rawRefreshToken, String deviceInfo) {
-        var tokenEntity = tokenService.validateAndGetRefreshToken(rawRefreshToken);
-        
-        // Rotate token (revoke old, issue new)
-        tokenService.revokeRefreshToken(tokenEntity);
-        
+        var tokenEntity = tokenService.consumeRefreshToken(rawRefreshToken);
         User user = tokenEntity.getUser();
         if (!user.isActive()) {
             throw new RuntimeException("Account is disabled");
@@ -92,5 +89,14 @@ public class AuthService {
                 .expiresIn(accessTokenExpirySeconds)
                 .user(new AuthResponse.UserDto(user.getId().toString(), user.getEmail()))
                 .build();
+    }
+
+    /** Used only after a verified OAuth callback and a one-time ticket exchange. */
+    @Transactional
+    public AuthResponse issueForUser(User user, String deviceInfo) {
+        if (!user.isActive()) {
+            throw new IllegalArgumentException("Account unavailable");
+        }
+        return buildAuthResponse(user, deviceInfo);
     }
 }

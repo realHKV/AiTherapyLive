@@ -3,7 +3,6 @@ package com.hkv.AiTherapy.security;
 import com.hkv.AiTherapy.domain.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -72,17 +71,13 @@ public class JwtTokenProvider {
     }
 
     public boolean validateToken(String token) {
-        System.out.println("Validate token callled");
         try {
             Jwts.parser()
                 .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(token);
-            System.out.println("ok");
             return true;
         } catch (Exception e) {
-            // Log exception here in real application
-            System.out.println("JWT validation failed: " + e.getClass().getName() + ": " + e.getMessage());
             return false;
         }
     }

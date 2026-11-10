@@ -1,12 +1,17 @@
 package com.hkv.AiTherapy.security;
 
+import tools.jackson.databind.ObjectMapper;
 import com.hkv.AiTherapy.domain.User;
+import com.hkv.AiTherapy.dto.response.ApiResponse;
 import com.hkv.AiTherapy.repository.TherapyProfileRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
+import com.hkv.AiTherapy.service.auth.OAuthTicketService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -21,6 +26,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final TherapyProfileRepository therapyProfileRepository;
+    private final OAuthTicketService ticketService;
+    private final ObjectMapper objectMapper;
+
+    @Value("${app.auth.oauth-ticket-handoff:false}")
+    private boolean ticketHandoff;
 
     // First origin in CORS_ALLOWED_ORIGINS is treated as the frontend base URL
     // e.g. "https://your-app.netlify.app" in production, "http://localhost:5173" locally
@@ -30,10 +40,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     @Autowired
     public OAuth2SuccessHandler(JwtTokenProvider jwtTokenProvider,
                                 UserRepository userRepository,
-                                TherapyProfileRepository therapyProfileRepository) {
+                                TherapyProfileRepository therapyProfileRepository,
+                                OAuthTicketService ticketService,
+                                ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
         this.therapyProfileRepository = therapyProfileRepository;
+        this.ticketService = ticketService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -43,6 +57,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String email = oAuth2User.getAttribute("email");
         String name = oAuth2User.getAttribute("name");
         String subject = oAuth2User.getAttribute("sub"); // Google provider's subject
+
+        if (email == null || email.isBlank() || subject == null || subject.isBlank()
+                || !Boolean.TRUE.equals(oAuth2User.getAttribute("email_verified"))) {
+            writeError(response, "AUTH_REQUIRED", "Google identity could not be verified.");
+            return;
+        }
 
         // Find or create user
         User user = userRepository.findByOauthProviderAndOauthSubject("google", subject)
@@ -57,13 +77,16 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                             return userRepository.save(newUser);
                         }));
 
-        // Generate tokens
-        String accessToken = jwtTokenProvider.generateAccessToken(user);
-        System.out.println("=== GENERATED TOKEN ===");
-        System.out.println(accessToken);
-        System.out.println("=== END TOKEN ===");
-        
-        // Normally you'd also generate a refresh token and save it to DB here
+        if (!user.isActive() || (user.getOauthSubject() != null && !subject.equals(user.getOauthSubject()))) {
+            writeError(response, "AUTH_REQUIRED", "Account is unavailable.");
+            return;
+        }
+        if (user.getOauthSubject() == null) {
+            user.setOauthProvider("google");
+            user.setOauthSubject(subject);
+            user.setVerified(true);
+            user = userRepository.save(user);
+        }
 
         // Detect if this is a brand-new user (no therapy profile created yet)
         boolean isNewUser = !therapyProfileRepository.existsByUserId(user.getId());
@@ -71,15 +94,31 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Redirect back to frontend with token (and new_user flag for onboarding routing)
         // Use the first allowed origin as the frontend base URL
         String frontendBaseUrl = corsAllowedOrigins.split(",")[0].trim();
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(frontendBaseUrl + "/oauth2/redirect")
-                .queryParam("token", accessToken);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(frontendBaseUrl + "/oauth2/redirect");
+        if (ticketHandoff) {
+            builder.queryParam("ticket", ticketService.issue(user.getId()));
+        } else {
+            builder.queryParam("token", jwtTokenProvider.generateAccessToken(user));
+        }
 
         if (isNewUser) {
             builder.queryParam("new_user", "true");
         }
 
         String targetUrl = builder.build().encode().toUriString();
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Referrer-Policy", "no-referrer");
+        if (request.getSession(false) != null) {
+            request.getSession(false).invalidate();
+        }
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
+    }
+
+    private void writeError(HttpServletResponse response, String code, String message) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        response.setHeader("Cache-Control", "no-store");
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));
     }
 }

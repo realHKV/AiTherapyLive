@@ -14,6 +14,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.nio.charset.StandardCharsets;
+import org.springframework.transaction.annotation.Transactional;
+import com.hkv.AiTherapy.security.JwtTokenProvider;
 
 @Service
 public class TokenService {
@@ -51,27 +54,39 @@ public class TokenService {
         return rawToken;
     }
 
-    /**
-     * Validates a raw refresh token against the DB hash.
-     * Returns the RefreshToken entity if valid, otherwise throws RuntimeException.
-     */
-    public RefreshToken validateAndGetRefreshToken(String rawToken) {
-        String tokenHash = hashToken(rawToken);
-        RefreshToken token = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
-
-        if (!token.isValid()) {
-            throw new RuntimeException("Refresh token is expired or revoked");
+    @Transactional
+    public RefreshToken consumeRefreshToken(String rawToken) {
+        RefreshToken token = refreshTokenRepository.findByTokenHashForUpdate(hashToken(rawToken))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+        if (!token.isValid() || !token.getUser().isActive()) {
+            throw new IllegalArgumentException("Refresh token is unavailable");
         }
+        token.setRevoked(true);
+        refreshTokenRepository.save(token);
         return token;
     }
 
-    /**
-     * Revokes a specific refresh token.
-     */
-    public void revokeRefreshToken(RefreshToken token) {
-        token.setRevoked(true);
-        refreshTokenRepository.save(token);
+    /** A failed Redis write leaves the refresh token usable so logout can be retried. */
+    @Transactional
+    public void logout(String rawRefreshToken, String accessToken, JwtTokenProvider jwtTokenProvider) {
+        RefreshToken refresh = null;
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            refresh = refreshTokenRepository.findByTokenHashForUpdate(hashToken(rawRefreshToken))
+                    .orElse(null);
+            if (refresh != null && !refresh.isValid()) {
+                refresh = null;
+            }
+        }
+        if (accessToken != null && jwtTokenProvider.validateToken(accessToken)) {
+            if (refresh != null && !refresh.getUser().getId().toString().equals(jwtTokenProvider.getUserIdFromToken(accessToken))) {
+                throw new IllegalArgumentException("Token owners differ");
+            }
+            denylistAccessToken(jwtTokenProvider.getJti(accessToken));
+        }
+        if (refresh != null) {
+            refresh.setRevoked(true);
+            refreshTokenRepository.save(refresh);
+        }
     }
 
     /**
@@ -86,7 +101,7 @@ public class TokenService {
     private String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(token.getBytes());
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Failed to hash token", e);

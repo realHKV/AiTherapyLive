@@ -1,17 +1,21 @@
-import apiClient from './client';
+import apiClient, { API_BASE_URL, refreshSession, expireSession } from './client';
+
+const requestKey = () => crypto.randomUUID();
 
 export const chatAPI = {
+  getActiveSession: () => apiClient.get('/chat/sessions/active'),
   // Start a new therapy session
   createSession: async () => {
-    const response = await apiClient.post('/chat/sessions');
-    console.log('Response:', response);
-    return response; // Inner data: ConversationResponse
+    return apiClient.post('/chat/sessions', null, {
+      headers: { 'X-Chat-Request-Version': '2', 'Idempotency-Key': requestKey() },
+    });
   },
 
   // Send a message (non-streamed)
   sendMessage: async (sessionId, content) => {
-    const response = await apiClient.post(`/chat/sessions/${sessionId}/messages`, { content });
-    return response.data; // Inner data: ChatMessageResponse
+    return apiClient.post(`/chat/sessions/${sessionId}/messages`, { content }, {
+      headers: { 'X-Chat-Request-Version': '2', 'Idempotency-Key': requestKey() },
+    });
   },
 
   // End active session to trigger summarization
@@ -20,26 +24,50 @@ export const chatAPI = {
     return response;
   },
 
-  // Sync profile without ending session
+  // Queue a snapshot of the active session for reviewable suggestions
   refreshProfileMidSession: async (sessionId) => {
     const response = await apiClient.post(`/chat/sessions/${sessionId}/refresh-profile`);
     return response;
   },
+  getExtractionStatus: (sessionId, jobId) => apiClient.get(`/chat/sessions/${sessionId}/extraction-status`, {
+    params: { jobId },
+  }),
 
-  // Note: Streaming via /chat/sessions/{sessionId}/stream usually uses EventSource or fetch directly, 
-  // because axios doesn't support SSE standardly in browsers.
-  // We will build a helper for fetch stream.
-  
-  createStreamSource: (sessionId, content) => {
-    // For POST with SSE, it's a bit tricky because standard EventSource only supports GET.
-    // However, if the backend expects POST, we have to use fetch() and read the stream.
-    return fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/chat/sessions/${sessionId}/stream`, {
+  getRequestStatus: (requestId) => apiClient.get(`/chat/requests/${requestId}`),
+
+  createStreamSource: async (sessionId, content, { signal, idempotencyKey = requestKey() } = {}) => {
+    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        'Accept': 'text/event-stream',
+        'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+        'X-Chat-Stream-Version': '2',
+        'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content }),
+      signal,
     });
-  }
+    if (!response.ok) {
+      if (response.status === 401) {
+        if (localStorage.getItem('refreshToken')) {
+          await refreshSession();
+          throw new Error('Your session was refreshed. Please send your message again.');
+        }
+        expireSession();
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+      const body = await response.json().catch(() => null);
+      const error = new Error(body?.error?.message || `Chat request failed (${response.status}).`);
+      error.code = body?.error?.code;
+      error.status = response.status;
+      error.retryAfter = response.headers.get('Retry-After');
+      error.resetAt = response.headers.get('X-Usage-Reset-At');
+      throw error;
+    }
+    if (!response.body || !response.headers.get('Content-Type')?.includes('text/event-stream')) {
+      throw new Error('The chat server did not return a stream.');
+    }
+    return response;
+  },
 };

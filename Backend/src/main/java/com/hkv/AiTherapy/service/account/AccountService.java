@@ -57,6 +57,8 @@ public class AccountService {
      */
     @Transactional
     public void deleteAccount(UUID userId) {
+        userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account unavailable"));
         log.warn("Permanently deleting account for userId={}", userId);
 
         // 1. Messages (depend on conversations which depend on user)

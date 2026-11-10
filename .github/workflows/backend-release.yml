@@ -1,0 +1,145 @@
+name: Backend image release
+
+on:
+  push:
+    tags: ['backend-image-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: backend-image-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'realHKV/AiTherapyLive' &&
+      (github.ref == 'refs/heads/main' ||
+       (startsWith(github.ref, 'refs/tags/backend-image-') &&
+        !startsWith(github.ref, 'refs/tags/backend-image-export-')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: backend-release
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Require release tag on the tested backend branch tip
+        if: startsWith(github.ref, 'refs/tags/backend-image-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/codex/backend-baseline" --jq .object.sha)
+          test "$branch_sha" = "$GITHUB_SHA"
+      - name: Require a successful image gate for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backend-tests.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" \
+            | jq -e --arg sha "$GITHUB_SHA" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
+      - name: Require configured Docker Hub destination
+        env:
+          NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$NAMESPACE" && test -n "$REPOSITORY" && test -n "$USERNAME" && test -n "$TOKEN"
+          [[ "$NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+          [[ "$REPOSITORY" =~ ^[a-z0-9][a-z0-9._-]*$ ]]
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: Backend/pom.xml
+      - name: Verify backend before release
+        working-directory: Backend
+        run: bash ./mvnw -B verify
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and publish commit-derived tag
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: Backend
+          platforms: linux/amd64
+          pull: true
+          push: true
+          tags: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}:sha-${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Scan published digest
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+      - name: Record release identity
+        env:
+          IMAGE: ${{ vars.DOCKERHUB_NAMESPACE }}/${{ vars.DOCKERHUB_REPOSITORY }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          jq -n --arg source "$GITHUB_REPOSITORY" --arg commit "$GITHUB_SHA" --arg image "$IMAGE" --arg digest "$DIGEST" --arg platform 'linux/amd64' '{source:$source,commit:$commit,image:$image,digest:$digest,platform:$platform}' > backend-image-release.json
+          printf 'Image: `%s@%s`\n' "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-image-release-${{ github.sha }}
+          path: backend-image-release.json
+          if-no-files-found: error
+
+  export-private-image:
+    if: >-
+      github.repository == 'realHKV/AiTherapyLive' &&
+      github.event_name == 'workflow_dispatch' &&
+      startsWith(github.ref, 'refs/tags/backend-image-export-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: backend-release
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Verify the protected release identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          manifest=Backend/docs/releases/STEP-16-private-image.json
+          image=$(jq -r .image "$manifest")
+          digest=$(jq -r .digest "$manifest")
+          commit=$(jq -r .commit "$manifest")
+          test "$image" = 'realhkv/aitherapy-backend'
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          test "$(jq -r .platform "$manifest")" = 'linux/amd64'
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backend-release.yml/runs?head_sha=$commit&event=push&per_page=100" \
+            | jq -e --arg commit "$commit" 'any(.workflow_runs[]; .head_sha == $commit and .conclusion == "success")'
+          printf 'IMAGE=%s@%s\n' "$image" "$digest" >> "$GITHUB_ENV"
+      - uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Pull exact digest and package the image
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          test "$(docker image inspect -f '{{.Os}}/{{.Architecture}}' "$IMAGE")" = 'linux/amd64'
+          docker save "$IMAGE" | gzip -1 > backend-image.tar.gz
+          sha256sum backend-image.tar.gz > backend-image.tar.gz.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-image-oci-a305911
+          path: |
+            backend-image.tar.gz
+            backend-image.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 2

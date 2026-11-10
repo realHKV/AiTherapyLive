@@ -1,0 +1,7 @@
+{
+  "source": "realHKV/AiTherapyLive",
+  "commit": "a3059114be72251b19765ffd3e66d660f85bbc6d",
+  "image": "realhkv/aitherapy-backend",
+  "digest": "sha256:c98cd9f3f64c4c2a7a624d51d00c7d85f5e5a081fe3f4c9ee3cd08eee6f3b4e5",
+  "platform": "linux/amd64"
+}

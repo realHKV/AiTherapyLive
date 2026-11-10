@@ -9,6 +9,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep fixed page navigation visible below the scheduled downtime notice. */
+html.demo-schedule-visible header.fixed.top-0 {
+  top: var(--demo-banner-height, 0px);
+}
+
 /* ---- Base ---- */
 @layer base {
   html {

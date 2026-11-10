@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -20,4 +21,11 @@ public class MemoryResponse {
     private LocalDate occurredAt;
     private LocalDate followUpAt;
     private boolean isResolved;
+    private String status;
+    private String sourceKind;
+    private Instant confirmedAt;
+    private Instant updatedAt;
+    private long version;
+    private String sourceConversationId;
+    private String sourceMessageId;
 }

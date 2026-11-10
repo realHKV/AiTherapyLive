@@ -48,6 +48,13 @@ public class User {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "context_revision", nullable = false)
+    @Builder.Default
+    private long contextRevision = 0;
+
+    @Column(name = "context_reset_at")
+    private Instant contextResetAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
