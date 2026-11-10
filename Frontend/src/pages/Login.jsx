@@ -39,8 +39,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-primary/15 text-primary mb-6" aria-hidden="true">
             <span className="material-symbols-outlined">waving_hand</span>
           </div>
-          <h1 className="font-headline text-3xl sm:text-4xl font-extrabold tracking-tight">Welcome back</h1>
-          <p className="text-on-surface-variant mt-3 mb-8">Sign in to your space and pick up where you left off.</p>
+          <h1 className="font-headline text-3xl sm:text-4xl font-extrabold tracking-tight">Welcome to your space</h1>
+          <p className="text-on-surface-variant mt-3 mb-8">Sign in to begin reflecting, or pick up where you left off.</p>
 
           <button type="button" onClick={() => { window.location.href = googleSignInUrl(); }}
             className="w-full min-h-12 rounded-xl bg-white text-gray-900 border border-outline-variant/30 font-bold hover:shadow-lg transition-shadow flex items-center justify-center gap-3">

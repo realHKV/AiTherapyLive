@@ -123,6 +123,12 @@ export default function Landing() {
 
   const handleSignIn = () => navigate('/login');
 
+  // Temporary review route; restore the direct Google flow after Razorpay approval.
+  const handleBeginJourney = () => {
+    recordPublicInteraction('public_get_started_clicked');
+    handleSignIn();
+  };
+
   const handleUpgradeToPro = () => {
     if (!isAuthenticated) {
       // Return to the upgrade panel after sign-in.
@@ -241,7 +247,7 @@ export default function Landing() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto pointer-events-auto">
-              <button onClick={handleGoogleSignIn} className="liquid-gradient text-on-primary w-full sm:w-auto justify-center px-4 sm:px-10 py-4 rounded-full font-headline font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 shadow-xl shadow-primary/10 hover:shadow-primary/20 active:scale-95 transition-all">
+              <button onClick={handleBeginJourney} className="liquid-gradient text-on-primary w-full sm:w-auto justify-center px-4 sm:px-10 py-4 rounded-full font-headline font-bold text-base sm:text-lg flex items-center gap-2 sm:gap-3 shadow-xl shadow-primary/10 hover:shadow-primary/20 active:scale-95 transition-all">
                 <span>Begin Your Journey</span>
                 <span className="material-symbols-outlined">arrow_forward</span>
               </button>

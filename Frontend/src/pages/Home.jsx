@@ -111,7 +111,11 @@ export default function Home() {
                     <div className="home-upgrade-copy">
                       <span className="home-card-label">WHEN YOU WANT MORE ROOM</span>
                       <h2 id="home-upgrade-title">Meet Reflection Plus</h2>
-                      <p>A higher tier AI guide and more space to talk each day, whenever you need it.</p>
+                      <p>More room for the conversations that matter to you.</p>
+                      <div className="home-upgrade-benefits">
+                        <p><strong>Free</strong><span>A daily AI usage allowance</span></p>
+                        <p><strong>Reflection Plus</strong><span>A more capable AI guide and expanded daily usage</span></p>
+                      </div>
                     </div>
                     <div className="home-upgrade-offer">
                       <p className="home-upgrade-price"><strong>₹100</strong><span>for 30 days</span></p>

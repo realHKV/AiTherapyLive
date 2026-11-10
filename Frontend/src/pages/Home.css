@@ -32,6 +32,10 @@
 .home-upgrade-copy .home-card-label { color: rgb(var(--color-primary)); }
 .home-upgrade-copy h2 { margin: 8px 0 6px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(23px, 3vw, 31px); font-weight: 800; letter-spacing: -.045em; }
 .home-upgrade-copy p { max-width: 470px; color: rgb(var(--color-on-surface-variant)); font-size: 13px; line-height: 1.6; }
+.home-upgrade-benefits { display: grid; gap: 7px; margin-top: 14px; }
+.home-upgrade-benefits p { display: flex; flex-wrap: wrap; gap: 3px 9px; margin: 0; font-size: 12px; }
+.home-upgrade-benefits strong { min-width: 106px; color: rgb(var(--color-on-surface)); }
+.home-upgrade-benefits span { flex: 1 1 165px; }
 .home-upgrade-offer { flex: 1 1 220px; display: grid; gap: 8px; }
 .home-upgrade-price { display: flex; align-items: baseline; justify-content: center; gap: 9px; white-space: nowrap; }
 .home-upgrade-price strong { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 37px; font-weight: 800; letter-spacing: -.055em; line-height: 1; color: rgb(var(--color-on-surface)); }
