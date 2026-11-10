@@ -23,5 +23,6 @@ public class AuthResponse {
     public static class UserDto {
         private String id;
         private String email;
+        private boolean readOnly;
     }
 }

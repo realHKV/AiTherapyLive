@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import { SubscriptionContext } from './subscriptionStore';
 
 export const SubscriptionProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [tier, setTier] = useState('FREE');
   const [proExpiresAt, setProExpiresAt] = useState(null);
   const [isPro, setIsPro] = useState(false);
@@ -16,7 +16,7 @@ export const SubscriptionProvider = ({ children }) => {
   const upgradeInFlight = useRef(false);
 
   const refreshStatus = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || user?.readOnly) return;
     setLoading(true);
     try {
       const data = await paymentAPI.getStatus();
@@ -31,11 +31,11 @@ export const SubscriptionProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.readOnly]);
 
   // Fetch status whenever auth state changes (login / refresh)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !user?.readOnly) {
       refreshStatus();
     } else {
       setTier('FREE');
@@ -43,7 +43,7 @@ export const SubscriptionProvider = ({ children }) => {
       setIsPro(false);
       setStatusLoaded(false);
     }
-  }, [isAuthenticated, refreshStatus]);
+  }, [isAuthenticated, user?.readOnly, refreshStatus]);
 
   const verifyAndUpgrade = useCallback(async (paymentId) => {
     const data = await paymentAPI.verifyPayment(paymentId);
@@ -55,6 +55,7 @@ export const SubscriptionProvider = ({ children }) => {
   }, []);
 
   const startUpgrade = useCallback(async (onSuccess) => {
+    if (user?.readOnly) return;
     if (upgradeInFlight.current) return;
     upgradeInFlight.current = true;
     setUpgradeError('');
@@ -99,7 +100,7 @@ export const SubscriptionProvider = ({ children }) => {
       upgradeInFlight.current = false;
       setUpgradeLoading(false);
     }
-  }, [verifyAndUpgrade, refreshStatus]);
+  }, [verifyAndUpgrade, refreshStatus, user?.readOnly]);
 
   // ─── Dev-only helpers (localhost only) ─────────────────────────────────────
   const isDevMode = import.meta.env.DEV

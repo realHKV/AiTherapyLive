@@ -60,7 +60,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payment/webhook").permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest().hasRole("USER"))
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oAuth2SuccessHandler))
                 .exceptionHandling(exceptions -> exceptions

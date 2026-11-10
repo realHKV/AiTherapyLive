@@ -81,6 +81,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             writeError(response, "AUTH_REQUIRED", "Account is unavailable.");
             return;
         }
+        if (ReviewerAccount.isReviewer(user)) {
+            writeError(response, "AUTH_REQUIRED", "Account is unavailable.");
+            return;
+        }
         if (user.getOauthSubject() == null) {
             user.setOauthProvider("google");
             user.setOauthSubject(subject);

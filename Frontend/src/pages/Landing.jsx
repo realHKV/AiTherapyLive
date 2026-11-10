@@ -68,7 +68,7 @@ const FAQ = [
 export default function Landing() {
   const navigate = useNavigate();
   const revealRef = usePageReveal();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { isPro, startUpgrade, upgradeLoading, upgradeError } = useSubscription();
   const [activeSection, setActiveSection] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -121,7 +121,13 @@ export default function Landing() {
     window.location.href = googleSignInUrl();
   };
 
+  const handleSignIn = () => navigate('/login');
+
   const handleUpgradeToPro = () => {
+    if (user?.readOnly) {
+      navigate('/home');
+      return;
+    }
     if (!isAuthenticated) {
       // Return to the upgrade panel after sign-in.
       sessionStorage.setItem('pendingUpgrade', 'true');
@@ -181,7 +187,7 @@ export default function Landing() {
             </a>
             <a className={`font-headline transition-all duration-300 ${activeSection === 'faq' ? 'text-primary font-bold' : 'text-on-surface/70 hover:text-primary'}`} href="#faq">FAQ</a>
             <ThemeToggle />
-            <button onClick={handleGoogleSignIn} className="bg-white border border-primary/30 px-6 py-2 rounded-full font-headline text-black font-semibold cursor-pointer active:scale-95 transition-all outline outline-1 outline-outline-variant/20">Sign In</button>
+            <button onClick={handleSignIn} className="bg-white border border-primary/30 px-6 py-2 rounded-full font-headline text-black font-semibold cursor-pointer active:scale-95 transition-all outline outline-1 outline-outline-variant/20">Sign In</button>
           </div>
           <div className="md:hidden">
             <button type="button" aria-label="Toggle navigation" aria-expanded={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="min-w-11 min-h-11 flex items-center justify-center -mr-2">
@@ -197,7 +203,7 @@ export default function Landing() {
             <a href="#security" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">Security</a>
             <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">Pricing</a>
             <a href="#faq" onClick={() => setIsMobileMenuOpen(false)} className="text-on-surface font-headline font-bold text-lg py-2">FAQ</a>
-            <button onClick={() => { handleGoogleSignIn(); setIsMobileMenuOpen(false); }} className="bg-primary text-on-primary px-6 py-3 rounded-full font-headline font-bold text-center mt-2">Sign In with Google</button>
+            <button onClick={() => { handleSignIn(); setIsMobileMenuOpen(false); }} className="bg-primary text-on-primary px-6 py-3 rounded-full font-headline font-bold text-center mt-2">Sign In</button>
           </div>
         )}
       </header>
