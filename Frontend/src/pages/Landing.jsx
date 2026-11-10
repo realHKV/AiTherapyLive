@@ -62,7 +62,7 @@ const FAQ = [
   { question: 'Will it remember what I share?', answer: 'Your conversation stays in your chat history. The app may suggest lasting profile details or memories, but you review and apply those suggestions before they are saved for future AI context.' },
   { question: 'Can I return to an unfinished conversation?', answer: 'Yes. An unfinished chat can be resumed on the same local calendar day. A new day starts a new session.' },
   { question: 'What is the difference between Free and Reflection Plus?', answer: 'Free includes a daily AI usage allowance. Reflection Plus provides a higher tier model and expanded usage for 30 days. It is a one-time, non-renewing, non-refundable purchase.' },
-  { question: 'When is this demo available?', answer: 'The demo backend is scheduled to pause from midnight until 7 a.m. India time. The site remains visible, and a countdown shows when chat is expected to return.' },
+  { question: 'When is this demo available?', answer: import.meta.env.VITE_DEMO_SCHEDULE_ENABLED === 'true' ? 'The demo backend is scheduled to pause from midnight until 7 a.m. India time. The site remains visible, and a countdown shows when chat is expected to return.' : 'The service is currently available throughout the day, subject to maintenance or unexpected interruptions.' },
 ];
 
 export default function Landing() {
