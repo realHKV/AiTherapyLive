@@ -7,17 +7,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import com.hkv.AiTherapy.repository.UserRepository;
-import com.hkv.AiTherapy.domain.User;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -53,12 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 Authentication authentication = jwtTokenProvider.getAuthentication(jwt);
                 java.util.UUID userId = java.util.UUID.fromString(authentication.getName());
-                User user = userRepository.findById(userId)
-                        .filter(User::isActive)
-                        .orElseThrow(() -> new SecurityException("Account is unavailable."));
-                if (ReviewerAccount.isReviewer(user)) {
-                    authentication = new UsernamePasswordAuthenticationToken(userId.toString(), null,
-                            List.of(new SimpleGrantedAuthority("ROLE_REVIEWER")));
+                if (!userRepository.existsByIdAndIsActiveTrue(userId)) {
+                    throw new SecurityException("Account is unavailable.");
                 }
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }

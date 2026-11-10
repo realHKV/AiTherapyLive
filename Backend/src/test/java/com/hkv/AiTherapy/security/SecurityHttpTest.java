@@ -12,7 +12,6 @@ import com.hkv.AiTherapy.controller.UsageController;
 import com.hkv.AiTherapy.dto.response.PurchaseResponse;
 import com.hkv.AiTherapy.repository.ConversationRepository;
 import com.hkv.AiTherapy.repository.UserRepository;
-import com.hkv.AiTherapy.domain.User;
 import com.hkv.AiTherapy.service.account.AccountService;
 import com.hkv.AiTherapy.service.auth.AuthService;
 import com.hkv.AiTherapy.service.auth.TokenService;
@@ -95,8 +94,7 @@ class SecurityHttpTest {
                 .thenReturn(new UsernamePasswordAuthenticationToken(USER_ID.toString(), null,
                         List.of(new SimpleGrantedAuthority("ROLE_USER"))));
         when(redisTemplate.hasKey("jwt:denylist:synthetic-jti")).thenReturn(false);
-        when(userRepository.findById(USER_ID)).thenReturn(java.util.Optional.of(
-                User.builder().id(USER_ID).email("fixture@example.invalid").isActive(true).build()));
+        when(userRepository.existsByIdAndIsActiveTrue(USER_ID)).thenReturn(true);
     }
 
     @Test
@@ -344,28 +342,13 @@ class SecurityHttpTest {
 
     @Test
     void disabledAccountAccessTokenIsRejected() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(java.util.Optional.empty());
+        when(userRepository.existsByIdAndIsActiveTrue(USER_ID)).thenReturn(false);
         mvc.perform(delete("/auth/account")
                         .header("Authorization", "Bearer synthetic-valid-token"))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(accountService);
     }
 
-    @Test
-    void reviewerTokenCanSignInButCannotReadOrChangeApplicationData() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(java.util.Optional.of(
-                User.builder().id(USER_ID).email("review@example.invalid")
-                        .oauthProvider("razorpay-review").isActive(true).build()));
-
-        mvc.perform(get("/profile/me").header("Authorization", "Bearer synthetic-valid-token"))
-                .andExpect(status().isForbidden());
-        mvc.perform(post("/payment/purchases").header("Authorization", "Bearer synthetic-valid-token"))
-                .andExpect(status().isForbidden());
-        mvc.perform(post("/chat/sessions").header("Authorization", "Bearer synthetic-valid-token")
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isForbidden());
-        verifyNoInteractions(profileService, subscriptionService, chatService, chatTurnWorkflow);
-    }
 
     @Test
     void redisFailureFailsClosedForAccessToken() throws Exception {

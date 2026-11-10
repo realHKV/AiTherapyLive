@@ -218,4 +218,3 @@ app:
   dev-mode: ${DEV_MODE:false}   # set to true in .env to enable /dev/* endpoints
   auth:
     oauth-ticket-handoff: ${OAUTH_TICKET_HANDOFF:false}
-    email-registration-enabled: ${EMAIL_REGISTRATION_ENABLED:false}

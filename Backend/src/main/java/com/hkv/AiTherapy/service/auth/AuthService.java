@@ -6,7 +6,6 @@ import com.hkv.AiTherapy.dto.request.RegisterRequest;
 import com.hkv.AiTherapy.dto.response.AuthResponse;
 import com.hkv.AiTherapy.repository.UserRepository;
 import com.hkv.AiTherapy.security.JwtTokenProvider;
-import com.hkv.AiTherapy.security.ReviewerAccount;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,8 +22,6 @@ public class AuthService {
     @Value("${jwt.access-token-expiry}")
     private long accessTokenExpirySeconds;
 
-    @Value("${app.auth.email-registration-enabled:false}")
-    private boolean emailRegistrationEnabled;
 
     public AuthService(UserRepository userRepository, 
                        PasswordEncoder passwordEncoder,
@@ -38,9 +35,6 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request, String deviceInfo) {
-        if (!emailRegistrationEnabled) {
-            throw new IllegalStateException("Email registration is disabled");
-        }
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email is already registered");
         }
@@ -93,8 +87,7 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(newRefreshToken)
                 .expiresIn(accessTokenExpirySeconds)
-                .user(new AuthResponse.UserDto(user.getId().toString(), user.getEmail(),
-                        ReviewerAccount.isReviewer(user)))
+                .user(new AuthResponse.UserDto(user.getId().toString(), user.getEmail()))
                 .build();
     }
 

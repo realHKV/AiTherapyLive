@@ -68,7 +68,7 @@ const FAQ = [
 export default function Landing() {
   const navigate = useNavigate();
   const revealRef = usePageReveal();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { isPro, startUpgrade, upgradeLoading, upgradeError } = useSubscription();
   const [activeSection, setActiveSection] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -124,10 +124,6 @@ export default function Landing() {
   const handleSignIn = () => navigate('/login');
 
   const handleUpgradeToPro = () => {
-    if (user?.readOnly) {
-      navigate('/home');
-      return;
-    }
     if (!isAuthenticated) {
       // Return to the upgrade panel after sign-in.
       sessionStorage.setItem('pendingUpgrade', 'true');

@@ -10,7 +10,6 @@ const Landing = lazy(() => import('./pages/Landing'));
 const AboutYou = lazy(() => import('./pages/AboutYou'));
 const ChooseTherapist = lazy(() => import('./pages/ChooseTherapist'));
 const Home = lazy(() => import('./pages/Home'));
-const ReadOnlyHome = lazy(() => import('./pages/ReadOnlyHome'));
 const Memories = lazy(() => import('./pages/Memories'));
 const Chat = lazy(() => import('./pages/Chat'));
 const OAuth2RedirectHandler = lazy(() => import('./pages/OAuth2RedirectHandler'));
@@ -25,24 +24,18 @@ const RouteLoading = () => (
 );
 
 // Requires authentication — redirects to landing if not logged in
-const ProtectedRoute = ({ children, allowReviewer = false }) => {
-  const { isAuthenticated, loading, user } = useAuth();
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
   if (loading) return <RouteLoading />;
   if (!isAuthenticated) return <Navigate to="/" replace />;
-  if (user?.readOnly && !allowReviewer) return <Navigate to="/home" replace />;
   return children;
-};
-
-const HomeView = () => {
-  const { user } = useAuth();
-  return user?.readOnly ? <ReadOnlyHome /> : <Home />;
 };
 
 // Redirects authenticated users from public pages to the app
 const AuthRedirectRoute = ({ children }) => {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   if (loading) return <RouteLoading />;
-  return isAuthenticated && !user?.readOnly ? <Navigate to="/home" replace /> : children;
+  return isAuthenticated ? <Navigate to="/home" replace /> : children;
 };
 
 const LoginRoute = ({ children }) => {
@@ -73,7 +66,7 @@ function App() {
           <Route path="/choose-therapist" element={<ProtectedRoute><ChooseTherapist /></ProtectedRoute>} />
 
           {/* App (protected) */}
-          <Route path="/home" element={<ProtectedRoute allowReviewer><HomeView /></ProtectedRoute>} />
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/memories" element={<ProtectedRoute><Memories /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
 

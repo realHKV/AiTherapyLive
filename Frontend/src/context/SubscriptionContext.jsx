@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import { SubscriptionContext } from './subscriptionStore';
 
 export const SubscriptionProvider = ({ children }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [tier, setTier] = useState('FREE');
   const [proExpiresAt, setProExpiresAt] = useState(null);
   const [isPro, setIsPro] = useState(false);
@@ -16,7 +16,7 @@ export const SubscriptionProvider = ({ children }) => {
   const upgradeInFlight = useRef(false);
 
   const refreshStatus = useCallback(async () => {
-    if (!isAuthenticated || user?.readOnly) return;
+    if (!isAuthenticated) return;
     setLoading(true);
     try {
       const data = await paymentAPI.getStatus();
@@ -31,11 +31,11 @@ export const SubscriptionProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user?.readOnly]);
+  }, [isAuthenticated]);
 
   // Fetch status whenever auth state changes (login / refresh)
   useEffect(() => {
-    if (isAuthenticated && !user?.readOnly) {
+    if (isAuthenticated) {
       refreshStatus();
     } else {
       setTier('FREE');
@@ -43,7 +43,7 @@ export const SubscriptionProvider = ({ children }) => {
       setIsPro(false);
       setStatusLoaded(false);
     }
-  }, [isAuthenticated, user?.readOnly, refreshStatus]);
+  }, [isAuthenticated, refreshStatus]);
 
   const verifyAndUpgrade = useCallback(async (paymentId) => {
     const data = await paymentAPI.verifyPayment(paymentId);
@@ -55,7 +55,6 @@ export const SubscriptionProvider = ({ children }) => {
   }, []);
 
   const startUpgrade = useCallback(async (onSuccess) => {
-    if (user?.readOnly) return;
     if (upgradeInFlight.current) return;
     upgradeInFlight.current = true;
     setUpgradeError('');
@@ -100,7 +99,7 @@ export const SubscriptionProvider = ({ children }) => {
       upgradeInFlight.current = false;
       setUpgradeLoading(false);
     }
-  }, [verifyAndUpgrade, refreshStatus, user?.readOnly]);
+  }, [verifyAndUpgrade, refreshStatus]);
 
   // ─── Dev-only helpers (localhost only) ─────────────────────────────────────
   const isDevMode = import.meta.env.DEV
