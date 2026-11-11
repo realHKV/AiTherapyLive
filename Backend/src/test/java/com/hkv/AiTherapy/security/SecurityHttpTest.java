@@ -312,7 +312,7 @@ class SecurityHttpTest {
         when(redisAdmissionService.admit(eq(USER_ID), any()))
                 .thenThrow(new RedisAdmissionService.RateLimitedException(12));
 
-        mvc.perform(post("/chat/sessions").header("Authorization", "Bearer synthetic-valid-token"))
+        mvc.perform(post("/chat/sessions/" + UUID.randomUUID() + "/refresh-profile").header("Authorization", "Bearer synthetic-valid-token"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "12"))
                 .andExpect(jsonPath("$.error.code").value("RATE_LIMITED"));
@@ -325,7 +325,7 @@ class SecurityHttpTest {
                 .thenThrow(new com.hkv.AiTherapy.service.usage.UsageException(
                         com.hkv.AiTherapy.service.usage.UsageException.Code.ACCOUNTING_UNAVAILABLE));
 
-        mvc.perform(post("/chat/sessions").header("Authorization", "Bearer synthetic-valid-token"))
+        mvc.perform(post("/chat/sessions/" + UUID.randomUUID() + "/refresh-profile").header("Authorization", "Bearer synthetic-valid-token"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("ACCOUNTING_UNAVAILABLE"));
         verifyNoInteractions(chatService);
