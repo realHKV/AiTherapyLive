@@ -63,7 +63,8 @@ public class RedisRateLimitFilter extends OncePerRequestFilter {
     private boolean isBillableChatSubmission(HttpServletRequest request) {
         if (!"POST".equals(request.getMethod())) return false;
         String path = request.getRequestURI();
-        return path.matches(".*/chat/sessions$") || path.matches(".*/chat/sessions/[0-9a-fA-F-]+/(messages|stream|refresh-profile)$");
+        // ChatTurnWorkflow admits greetings and messages; this gate handles profile refresh.
+        return path.matches(".*/chat/sessions/[0-9a-fA-F-]+/refresh-profile$");
     }
     private void write(HttpServletResponse response, HttpStatus status, String code, String message) throws IOException {
         response.setStatus(status.value());
