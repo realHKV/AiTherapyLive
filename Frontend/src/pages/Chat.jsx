@@ -289,12 +289,16 @@ export default function Chat() {
           }
         } else {
           if (err.status === 429) {
-            const reset = err.resetAt || usage?.resetAt;
-            const resetTime = reset && !Number.isNaN(Date.parse(reset))
-              ? ` Please try again after ${new Date(reset).toLocaleString()}.` : '';
-            const waitTime = err.retryAfter && Number.isFinite(Number(err.retryAfter))
-              ? ` Please try again in ${err.retryAfter} seconds.` : '';
-            setChatError(err.message + (err.code === 'RATE_LIMITED' && err.retryAfter ? waitTime : resetTime));
+            if (err.retryAfter || err.code === 'RATE_LIMITED') {
+              const seconds = Number(err.retryAfter);
+              const wait = Number.isFinite(seconds) && seconds > 0 ? ` Please try again in ${Math.ceil(seconds)} seconds.` : ' Please wait a moment and try again.';
+              setChatError(`Let’s slow down for a moment.${wait}`);
+            } else {
+              const reset = err.resetAt || usage?.resetAt;
+              const resetTime = reset && !Number.isNaN(Date.parse(reset))
+                ? ` Please try again after ${new Date(reset).toLocaleString()}.` : '';
+              setChatError(err.message + resetTime);
+            }
           } else if (err.code === 'ACCOUNTING_UNAVAILABLE') {
             setChatError('Usage accounting is temporarily unavailable. Please try again later.');
           } else {
