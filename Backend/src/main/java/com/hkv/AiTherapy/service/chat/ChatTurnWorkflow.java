@@ -749,7 +749,8 @@ public class ChatTurnWorkflow {
             this.retryAfterSeconds = retryAfterSeconds;
         }
         @Override public org.springframework.http.HttpHeaders getHeaders() {
-            org.springframework.http.HttpHeaders headers = super.getHeaders();
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.putAll(super.getHeaders());
             headers.set("Retry-After", Long.toString(retryAfterSeconds));
             return headers;
         }
